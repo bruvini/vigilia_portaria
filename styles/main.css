@@ -1,0 +1,60 @@
+.stApp {
+    background-color: #F5F7FA;
+}
+
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+    padding-left: 3rem;
+    padding-right: 3rem;
+}
+
+.hero-banner {
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    margin-bottom: 2rem;
+    border: 1px solid #DCE3EA;
+}
+
+.custom-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 18px;
+    border: 1px solid #E4EAF1;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+    height: 100%;
+}
+
+.card-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 1rem;
+}
+
+.card-text {
+    color: #475569;
+    line-height: 1.7;
+    font-size: 0.96rem;
+}
+
+.highlight-box {
+    background: linear-gradient(
+        135deg,
+        rgba(8,47,73,0.04),
+        rgba(14,165,233,0.04)
+    );
+    border: 1px solid #D9E7F2;
+    border-radius: 16px;
+    padding: 1.2rem 1.4rem;
+    margin-top: 1rem;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #0F172A;
+}
+
+section[data-testid="stSidebar"] * {
+    color: white;
+}
