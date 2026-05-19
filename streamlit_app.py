@@ -9,7 +9,6 @@ from utils.helpers import load_css
 
 st.set_page_config(
     page_title="Vigília",
-    page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
 )

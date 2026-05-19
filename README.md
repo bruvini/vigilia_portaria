@@ -1,19 +1,24 @@
-# :earth_americas: GDP dashboard template
+# Plataforma Vigília
 
-A simple Streamlit app showing the GDP of different countries in the world.
+Sistema institucional de inteligência e monitoramento automatizado de publicações oficiais e atos normativos.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gdp-dashboard-template.streamlit.app/)
+### Como executar localmente
 
-### How to run it on your own machine
+1. Instale as dependências:
 
-1. Install the requirements
-
-   ```
-   $ pip install -r requirements.txt
+   ```bash
+   pip install -r requirements.txt
    ```
 
-2. Run the app
+2. Execute a aplicação:
 
+   ```bash
+   streamlit run streamlit_app.py
    ```
-   $ streamlit run streamlit_app.py
-   ```
+
+### Tecnologias Utilizadas
+
+- **Python**: Lógica principal.
+- **Streamlit**: Framework de interface de usuário.
+- **Pandas**: Manipulação e estruturação de dados.
+
