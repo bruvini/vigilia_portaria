@@ -1,7 +1,12 @@
-/* Tema Claro - Plataforma Vigília */
+/* =========================================================
+   Tema Claro – Plataforma Vigília
+   ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/* ---------------------------------------------------------
+   Base
+   --------------------------------------------------------- */
 .stApp {
     background-color: #f8fafc;
     font-family: 'Inter', sans-serif;
@@ -14,15 +19,151 @@
     padding-right: 4rem;
 }
 
+/* ---------------------------------------------------------
+   Banner / Hero  (largura reduzida — max 360px)
+   --------------------------------------------------------- */
+.hero-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
 .hero-banner {
+    width: 100%;
+    max-width: 360px;
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
-    margin-bottom: 2.5rem;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
     border: 1px solid #e2e8f0;
     background-color: #ffffff;
 }
 
+/* ---------------------------------------------------------
+   Tipografia de Página
+   --------------------------------------------------------- */
+.page-intro {
+    margin-bottom: 1rem;
+}
+
+.page-title {
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 0 0 0.4rem 0 !important;
+}
+
+.page-subtitle {
+    color: #475569;
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* ---------------------------------------------------------
+   Cabeçalho de Seção
+   --------------------------------------------------------- */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.section-icon {
+    display: flex;
+    align-items: center;
+    color: #0ea5e9;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+/* ---------------------------------------------------------
+   Cards de Resultado
+   --------------------------------------------------------- */
+.result-count {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 1rem;
+    letter-spacing: 0.01em;
+}
+
+.result-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.result-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #bae6fd;
+}
+
+.result-breadcrumb {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.result-title {
+    font-size: 0.97rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.result-title a {
+    color: #0f172a;
+    text-decoration: none;
+}
+
+.result-title a:hover {
+    color: #0ea5e9;
+    text-decoration: underline;
+}
+
+.result-description {
+    font-size: 0.88rem;
+    color: #475569;
+    line-height: 1.6;
+}
+
+/* Destaque das palavras-chave */
+mark.keyword-highlight {
+    background-color: #fef08a;
+    color: #713f12;
+    border-radius: 3px;
+    padding: 0 2px;
+    font-weight: 600;
+}
+
+/* ---------------------------------------------------------
+   Alerta / Estado vazio
+   --------------------------------------------------------- */
+.alert-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    color: #475569;
+    font-size: 0.95rem;
+}
+
+/* ---------------------------------------------------------
+   Cards Informativos
+   --------------------------------------------------------- */
 .custom-card {
     background: #ffffff;
     padding: 2rem;
@@ -57,7 +198,7 @@
 }
 
 .card-title {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 600;
     color: #0f172a;
     margin: 0;
@@ -69,15 +210,9 @@
     font-size: 0.95rem;
 }
 
-.highlight-box {
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.05), rgba(56, 189, 248, 0.05));
-    border: 1px solid #bae6fd;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-top: 1.5rem;
-}
-
-/* Sidebar Styling */
+/* ---------------------------------------------------------
+   Sidebar
+   --------------------------------------------------------- */
 section[data-testid="stSidebar"] {
     background-color: #ffffff;
     border-right: 1px solid #e2e8f0;
@@ -87,14 +222,16 @@ section[data-testid="stSidebar"] .stMarkdown {
     color: #334155;
 }
 
-section[data-testid="stSidebar"] h1, 
-section[data-testid="stSidebar"] h2, 
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
     color: #0f172a !important;
     font-weight: 600;
 }
 
-/* Typography Overrides */
+/* ---------------------------------------------------------
+   Tipografia Global
+   --------------------------------------------------------- */
 h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', sans-serif !important;
     color: #0f172a !important;
