@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import re
 import tempfile
+import json
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -98,9 +99,9 @@ def is_valid_category(categoria: str) -> bool:
     return False
 
 # Regra 2: Filtrar apenas Portarias
-def is_portaria_document(titulo: str, assunto: str, tipo: str) -> bool:
+def is_portaria_document(titulo: str, assunto: str) -> bool:
     """Valida se o documento é uma portaria válida, ignorando licitações e outros."""
-    termos = f"{titulo} {assunto} {tipo}"
+    termos = f"{titulo} {assunto}"
     norm_termos = normalize_text(termos)
 
     # Rejeições explícitas
@@ -110,16 +111,14 @@ def is_portaria_document(titulo: str, assunto: str, tipo: str) -> bool:
         if re.search(rf"\b{rej}\b", norm_termos):
             return False
 
-    # Deve iniciar ou conter PORTARIA de forma forte
+    # Deve iniciar com PORTARIA de forma forte
     # r"^\s*portaria\b" aplicado ao título ou ao assunto
     if re.search(r"^\s*portaria\b", normalize_text(titulo)):
         return True
     if re.search(r"^\s*portaria\b", normalize_text(assunto)):
         return True
-    if re.search(r"^\s*portaria\b", normalize_text(tipo)):
-        return True
     
-    # Se "portaria" estiver solto no texto e não for rejeitado
+    # Fallback relaxado, se a palavra "portaria" estiver forte solta
     if "portaria" in norm_termos:
         return True
         
@@ -189,6 +188,10 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
                 last_page = meta.get("last_page", 1)
                 materias = data_mat.get("data", [])
 
+                if pagina == 1 and materias:
+                    logger.info(f"--- 5 PRIMEIROS REGISTROS BRUTOS (CATEGORIA {cid}) ---")
+                    logger.info(json.dumps(materias[:5], ensure_ascii=False, indent=2))
+
                 for mat in materias:
                     texto_bruto = mat.get("dsTexto", "")
                     
@@ -241,12 +244,12 @@ def _processar_materia(session: requests.Session, cd_jornal: str, mat: dict[str,
 
     # Validar Categoria
     if not is_valid_category(categoria):
-        logger.info(f"[DOE-SC] Documento ignorado: categoria inválida ({categoria})")
+        logger.info(f"[DOE-SC] Documento ignorado: categoria inválida | Categoria: '{categoria}' | Título: '{titulo}'")
         return None
 
     # Validar Portaria
-    if not is_portaria_document(titulo, assunto, tipo_ato):
-        logger.info(f"[DOE-SC] Documento ignorado: não é portaria (Título: {titulo[:30]}...)")
+    if not is_portaria_document(titulo, assunto):
+        logger.info(f"[DOE-SC] Documento ignorado: não é portaria | Categoria: '{categoria}' | Assunto: '{assunto}' | Título: '{titulo}'")
         return None
 
     try:
@@ -289,11 +292,7 @@ def _processar_materia(session: requests.Session, cd_jornal: str, mat: dict[str,
         if "joinville" in norm_resumo:
             score += 1
 
-        if score < 2:
-            logger.info(f"[DOE-SC] Documento ignorado: score Joinville insuficiente ({score}) para {cd_materia}")
-            return None
-
-        logger.info(f"[DOE-SC] Documento aprovado (Score: {score}): {cd_materia}")
+        logger.info(f"[DOE-SC] Documento aprovado (Score: {score}): {cd_materia} | Título: '{titulo}'")
 
         # Badge visual para UI
         categoria_badge = "🏛️ Prefeitura Joinville" if "joinville" in norm_cat else "🏥 Saúde Estadual"
