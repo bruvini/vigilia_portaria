@@ -191,22 +191,39 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
                     st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
 
                 else: # DOE-SC (ou outras)
-                    # Verifica menção simples a "Joinville" no conteúdo completo
-                    menciona_joinville = "joinville" in descricao.lower() or "joinville" in titulo.lower()
-                    badge_joinville = ""
-                    if menciona_joinville:
-                        badge_joinville = (
-                            '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
-                            'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
-                            'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
-                        )
+                    tipo_ato     = str(linha.get("tipo", ""))
+                    orgao_ato    = str(linha.get("orgao", ""))
+                    palavra_enc  = str(linha.get("palavra_encontrada", ""))
+
+                    # Badge Joinville — garantido pelo service para todos os resultados DOE-SC
+                    badge_joinville = (
+                        '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
+                        'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
+                        'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
+                    )
 
                     titulo_html = _destacar_palavras(titulo, palavras_chave)
                     st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_joinville}</h4>", unsafe_allow_html=True)
 
+                    # Metadados secundários (tipo + órgão)
+                    meta_partes = []
+                    if tipo_ato:
+                        meta_partes.append(f"<strong>Tipo:</strong> {tipo_ato}")
+                    if orgao_ato:
+                        meta_partes.append(f"<strong>Órgão:</strong> {orgao_ato}")
+                    if palavra_enc:
+                        meta_partes.append(f"<strong>Termo encontrado:</strong> {palavra_enc}")
+                    if meta_partes:
+                        st.markdown(
+                            "<div style='font-size:0.82rem; color:#64748b; margin-bottom:8px;'>"
+                            + " &nbsp;|&nbsp; ".join(meta_partes)
+                            + "</div>",
+                            unsafe_allow_html=True
+                        )
+
                     descricao_html = _destacar_palavras(descricao, palavras_chave)
-                    with st.expander("Clique para ver o texto completo da publicação"):
-                        st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
+                    with st.expander("Clique para ver o trecho extraído"):
+                        st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.7; white-space: pre-wrap;'>{descricao_html}</div>", unsafe_allow_html=True)
 
 
 def _badge_origem(origem: str) -> str:
