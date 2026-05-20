@@ -85,28 +85,64 @@ def buscar_doesc(
         page.set_default_timeout(TIMEOUT)
 
         try:
-            # ── 1. Navegar até a listagem de edições ──────────────────────
+            # ── 1. Clique em 'Buscar Edições' ────────────────────────────
             page.goto(URL_BASE, wait_until="domcontentloaded")
             _wait_angular(page)
 
+            page.wait_for_selector("a:has-text('Buscar Edições')")
             page.click("a:has-text('Buscar Edições')")
             _wait_angular(page)
 
-            # ── 2. Aplicar filtro de data ─────────────────────────────────
-            _aplicar_filtro_data(page, data_fmt)
+            # ── 2. Clique no botão 'Filtros' ──────────────────────────────
+            page.wait_for_selector("button:has-text('Filtros'), button:has(.pi-filter)")
+            btn_filtro = page.locator("button:has-text('Filtros'), button:has(.pi-filter)").first
+            btn_filtro.click()
 
-            # ── 3. Coletar edições disponíveis (Ordinária + Extra) ────────
-            edicoes = _listar_edicoes(page)
+            # ── 3. Modal 1 (Filtro de Data) ────────────────────────────────
+            page.wait_for_selector("p-dialog:has(p-calendar) .p-dialog", state="visible")
 
-            # ── 4. Processar cada edição ──────────────────────────────────
-            for idx, edicao in enumerate(edicoes[:3]):   # limita às 3 primeiras
-                resultados_edicao = _processar_edicao(
-                    page, idx, edicao, palavras_chave
-                )
-                todos.extend(resultados_edicao)
+            _preencher_calendar(page, "p-dialog:has(p-calendar) .p-dialog p-calendar:first-of-type input", data_fmt)
+            page.wait_for_timeout(500)
 
-        except Exception:
-            pass
+            _preencher_calendar(page, "p-dialog:has(p-calendar) .p-dialog p-calendar:last-of-type input", data_fmt)
+            page.wait_for_timeout(500)
+
+            btn_aplicar = page.locator("p-dialog:has(p-calendar) .p-dialog button:has-text('Aplicar')")
+            btn_aplicar.click()
+
+            # Aguarde o modal sumir e a lista carregar
+            page.wait_for_selector("p-dialog:has(p-calendar) .p-dialog", state="hidden")
+            page.wait_for_selector("button:has-text('Abrir')", state="visible")
+            _wait_angular(page)
+
+            # ── 4. Lista de Edições ───────────────────────────────────────
+            # Clique no botão 'Abrir' do primeiro resultado da listagem.
+            first_abrir = page.locator("button:has-text('Abrir')").first
+            first_abrir.click()
+            _wait_angular(page)
+
+            # ── 5. Modal 2 (Formato da Edição) ────────────────────────────
+            # Um novo modal aparecerá perguntando o formato.
+            # Clique EXATAMENTE no botão com texto 'EXTRATO DE PUBLICAÇÃO CERTIFICADA'.
+            page.wait_for_selector("button:has-text('EXTRATO DE PUBLICAÇÃO CERTIFICADA')", state="visible")
+            page.click("button:has-text('EXTRATO DE PUBLICAÇÃO CERTIFICADA')")
+
+            # Aguarde a nova página carregar (verificando a visibilidade da categoria)
+            page.wait_for_selector(
+                "span:has-text('Selecione uma categoria'), p-dropdown:has-text('Selecione uma categoria'), .p-placeholder:has-text('Selecione uma categoria')",
+                state="visible"
+            )
+            _wait_angular(page)
+
+            # ── 6 e 7. Filtros de Categoria e Assunto / Iteração ───────────
+            for categoria in CATEGORIAS_ALVO:
+                novos = _extrair_por_categoria(page, categoria, palavras_chave)
+                todos.extend(novos)
+
+        except Exception as e:
+            # Silencia ou loga internamente para depuração se necessário
+            import traceback
+            traceback.print_exc()
         finally:
             browser.close()
 
@@ -114,43 +150,6 @@ def buscar_doesc(
         return pd.DataFrame(columns=COLUNAS)
 
     return pd.DataFrame(todos, columns=COLUNAS)
-
-
-# ---------------------------------------------------------------------------
-# ETAPA 2 – Filtro de data no modal
-# ---------------------------------------------------------------------------
-
-def _aplicar_filtro_data(page: Page, data_fmt: str) -> None:
-    """Abre o modal de filtros, preenche as datas e clica em Aplicar."""
-    try:
-        # Abre o modal de filtros — botão com ícone .pi-filter
-        btn_filtro = page.query_selector("button:has(.pi-filter)")
-        if not btn_filtro:
-            btn_filtro = page.query_selector("button:has-text('Filtros')")
-        if btn_filtro:
-            btn_filtro.click()
-            page.wait_for_timeout(WAIT_SM)
-
-        # Aguarda o p-dialog ficar visível
-        try:
-            page.wait_for_selector("p-dialog input, .p-dialog input", timeout=WAIT_MD)
-        except PlaywrightTimeoutError:
-            return
-
-        # Preenche Data Início (primeiro p-calendar do dialog)
-        _preencher_calendar(page, "p-dialog p-calendar:first-of-type input", data_fmt)
-        page.wait_for_timeout(500)
-
-        # Preenche Data Fim (último p-calendar do dialog)
-        _preencher_calendar(page, "p-dialog p-calendar:last-of-type input", data_fmt)
-        page.wait_for_timeout(500)
-
-        # Clica em Aplicar (último botão do footer do dialog)
-        _clicar_aplicar(page)
-        _wait_angular(page)
-
-    except Exception:
-        pass
 
 
 def _preencher_calendar(page: Page, seletor: str, data_fmt: str) -> None:
@@ -169,151 +168,6 @@ def _preencher_calendar(page: Page, seletor: str, data_fmt: str) -> None:
         pass
 
 
-def _clicar_aplicar(page: Page) -> None:
-    """Clica no botão Aplicar dentro do modal de filtros."""
-    seletores = [
-        ".p-dialog-footer button:last-of-type",
-        "p-dialog button:has-text('Aplicar')",
-        ".p-dialog button:has-text('Aplicar')",
-        "button .p-button-label:has-text('Aplicar')",
-    ]
-    for sel in seletores:
-        try:
-            el = page.query_selector(sel)
-            if el and el.is_visible():
-                el.click()
-                return
-        except Exception:
-            continue
-
-    # Fallback via JavaScript
-    page.evaluate("""() => {
-        const btns = document.querySelectorAll('.p-dialog-footer button, p-dialog button');
-        for (const b of btns) {
-            if (b.textContent.trim() === 'Aplicar') { b.click(); return; }
-        }
-    }""")
-
-
-# ---------------------------------------------------------------------------
-# ETAPA 3 – Listar edições na página
-# ---------------------------------------------------------------------------
-
-def _listar_edicoes(page: Page) -> list[dict]:
-    """Retorna metadados das edições listadas na página de resultados."""
-    try:
-        page.wait_for_selector(
-            "button:has-text('Abrir'), .p-dataview-content",
-            timeout=WAIT_LG,
-        )
-    except PlaywrightTimeoutError:
-        return []
-
-    edicoes = page.evaluate("""() => {
-        const results = [];
-        // Tenta capturar cards de edição
-        const cards = document.querySelectorAll('.p-dataview-content .col-12, .card.card-content');
-        cards.forEach((card, i) => {
-            const texto = card.innerText.trim();
-            const abrir = card.querySelector('button');
-            results.push({
-                index: i,
-                texto: texto,
-                temBotao: !!abrir
-            });
-        });
-        return results;
-    }""")
-
-    return [e for e in edicoes if e.get("temBotao")]
-
-
-# ---------------------------------------------------------------------------
-# ETAPA 4 – Processar uma edição
-# ---------------------------------------------------------------------------
-
-def _processar_edicao(
-    page: Page,
-    idx: int,
-    edicao_info: dict,
-    palavras_chave: list[str],
-) -> list[dict]:
-    """Abre uma edição, navega no visualizador e extrai publicações."""
-    resultados: list[dict] = []
-
-    try:
-        # Relocaliza e clica no botão "Abrir" do card correto
-        botoes_abrir = page.query_selector_all("button:has-text('Abrir')")
-        if idx >= len(botoes_abrir):
-            return resultados
-
-        botoes_abrir[idx].click()
-        _wait_angular(page)
-
-        # Modal de escolha de formato — clica em "EXTRATO DE PUBLICAÇÃO CERTIFICADA"
-        _selecionar_extrato(page)
-        _wait_angular(page)
-
-        # Dentro do visualizador: itera pelas categorias-alvo
-        for categoria in CATEGORIAS_ALVO:
-            novos = _extrair_por_categoria(page, categoria, palavras_chave)
-            resultados.extend(novos)
-
-        # Retorna à lista de edições
-        _voltar_lista(page)
-        _wait_angular(page)
-
-    except Exception:
-        try:
-            _voltar_lista(page)
-        except Exception:
-            pass
-
-    return resultados
-
-
-def _selecionar_extrato(page: Page) -> None:
-    """Seleciona o formato 'EXTRATO DE PUBLICAÇÃO CERTIFICADA' no modal."""
-    seletores = [
-        "button.btn-extrato",
-        "button:has-text('EXTRATO DE PUBLICAÇÃO CERTIFICADA')",
-        "button:has-text('Extrato')",
-        ".btn-extrato",
-    ]
-    for sel in seletores:
-        try:
-            el = page.query_selector(sel)
-            if el and el.is_visible():
-                el.click()
-                return
-        except Exception:
-            continue
-
-
-def _voltar_lista(page: Page) -> None:
-    """Retorna à lista de edições."""
-    seletores = [
-        "button[label='Voltar']",
-        "button:has-text('Voltar')",
-        "a:has-text('Voltar')",
-    ]
-    for sel in seletores:
-        try:
-            el = page.query_selector(sel)
-            if el and el.is_visible():
-                el.click()
-                return
-        except Exception:
-            continue
-
-    # Fallback: navega para a URL de busca
-    page.go_back()
-
-
-# ---------------------------------------------------------------------------
-# ETAPA 4c – Extração por categoria dentro do visualizador
-# ---------------------------------------------------------------------------
-
 def _extrair_por_categoria(
     page: Page,
     texto_categoria: str,
@@ -330,7 +184,7 @@ def _extrair_por_categoria(
 
         # Lista assuntos de PORTARIA disponíveis
         assuntos = _primeng_list_options(page, "Selecione um assunto")
-        assuntos_portaria = [a for a in assuntos if "PORTARIA" in a.upper()]
+        assuntos_portaria = [a for a in assuntos if a.strip().upper().startswith("PORTARIA")]
 
         for assunto in assuntos_portaria:
             _primeng_select(page, "Selecione um assunto", assunto)
@@ -366,14 +220,14 @@ def _extrair_atos_lista(
     try:
         # Aguarda resultado ou mensagem de vazio
         try:
-            page.wait_for_selector("section, .p-dataview-emptymessage", timeout=WAIT_MD)
+            page.wait_for_selector("section.grid.border-bottom-1, .p-dataview-emptymessage", timeout=WAIT_MD)
         except PlaywrightTimeoutError:
             return resultados
 
-        # Conta quantos cards/atos existem
-        n_sections = page.evaluate(
-            "() => document.querySelectorAll('section').length"
-        )
+        # Conta quantos cards/atos existem (apenas visíveis)
+        sections = page.query_selector_all("section.grid.border-bottom-1")
+        visible_sections = [s for s in sections if s.is_visible()]
+        n_sections = len(visible_sections)
 
         for i in range(n_sections):
             resultado = _processar_ato(page, i, categoria, assunto, palavras_chave)
@@ -395,30 +249,40 @@ def _processar_ato(
 ) -> dict | None:
     """Abre o detalhe de um ato, extrai o texto e verifica palavras-chave."""
     try:
-        sections = page.query_selector_all("section")
-        if idx >= len(sections):
+        sections = page.query_selector_all("section.grid.border-bottom-1")
+        visible_sections = [s for s in sections if s.is_visible()]
+        if idx >= len(visible_sections):
             return None
 
-        section = sections[idx]
+        section = visible_sections[idx]
 
         # Extrai metadados do card
         metadados = section.evaluate("el => el.innerText").strip()
         titulo = _extrair_titulo_do_card(metadados, assunto)
 
         # Clica em "Saiba mais" para o detalhe
-        link_detalhe = section.query_selector("a.mr-2, a:has-text('Saiba mais'), a:has-text('Ver')")
+        link_detalhe = section.query_selector("a:has-text('Saiba mais')")
         if not link_detalhe:
-            # Sem link de detalhe — usa apenas os metadados
+            link_detalhe = section.query_selector("a.mr-2, a:has-text('Ver')")
+
+        if not link_detalhe:
+            # Sem link de detalhe — usa apenas os metadados do card
             texto_completo = metadados
         else:
             link_detalhe.click()
             _wait_angular(page)
 
+            # Aguarde a tela de detalhe carregar
+            page.wait_for_selector("button[label='Voltar']", timeout=WAIT_MD)
+
             texto_completo = _extrair_texto_detalhe(page)
 
-            # Volta para a lista
-            _voltar_lista(page)
+            # Clique no botão 'Voltar' (<button ... label="Voltar">)
+            page.click("button[label='Voltar']")
             _wait_angular(page)
+
+            # Restaura os filtros se foram resetados ao voltar
+            _restaurar_filtros(page, categoria, assunto)
 
         # Filtra por palavras-chave
         if palavras_chave:
@@ -436,10 +300,37 @@ def _processar_ato(
 
     except Exception:
         try:
-            _voltar_lista(page)
+            # Se deu erro e estamos na tela de detalhe, tenta voltar
+            btn_voltar = page.query_selector("button[label='Voltar']")
+            if btn_voltar and btn_voltar.is_visible():
+                btn_voltar.click()
+                _wait_angular(page)
+            _restaurar_filtros(page, categoria, assunto)
         except Exception:
             pass
         return None
+
+
+def _restaurar_filtros(page: Page, categoria: str, assunto: str) -> None:
+    """Garante que a categoria e o assunto continuem selecionados após voltar do detalhe."""
+    try:
+        selector_cat = 'p-dropdown[placeholder*="Selecione uma categoria" i], p-dropdown:has(span:has-text("Selecione uma categoria"))'
+        cat_dropdown = page.locator(selector_cat).first
+        if cat_dropdown.is_visible():
+            label = cat_dropdown.inner_text().strip()
+            if "Selecione uma categoria" in label:
+                _primeng_select(page, "Selecione uma categoria", categoria)
+                _wait_angular(page)
+
+        selector_ass = 'p-dropdown[placeholder*="Selecione um assunto" i], p-dropdown:has(span:has-text("Selecione um assunto"))'
+        sub_dropdown = page.locator(selector_ass).first
+        if sub_dropdown.is_visible():
+            label = sub_dropdown.inner_text().strip()
+            if "Selecione um assunto" in label:
+                _primeng_select(page, "Selecione um assunto", assunto)
+                _wait_angular(page)
+    except Exception:
+        pass
 
 
 def _extrair_titulo_do_card(metadados: str, fallback: str) -> str:
@@ -496,48 +387,19 @@ def _wait_angular(page: Page) -> None:
 def _primeng_select(page: Page, placeholder: str, texto_alvo: str) -> bool:
     """Abre um p-dropdown e seleciona a opção que contém o texto-alvo."""
     try:
-        # Clica no dropdown pelo span com o placeholder
-        clicado = page.evaluate(
-            """([ph]) => {
-                const spans = document.querySelectorAll('.p-dropdown-label, .p-placeholder');
-                for (const s of spans) {
-                    if (s.textContent.trim().toLowerCase().includes(ph.toLowerCase())) {
-                        s.closest('.p-dropdown, p-dropdown').click();
-                        return true;
-                    }
-                }
-                return false;
-            }""",
-            [placeholder],
-        )
-
-        if not clicado:
-            page.click(f"span:has-text('{placeholder}')")
-
-        page.wait_for_timeout(800)
-
-        # Aguarda o painel abrir
-        try:
-            page.wait_for_selector(".p-dropdown-item, .p-listbox-item", timeout=WAIT_SM)
-        except PlaywrightTimeoutError:
+        dropdown = page.locator(f'p-dropdown[placeholder*="{placeholder}" i], p-dropdown:has(span:has-text("{placeholder}"))').first
+        if not dropdown.is_visible():
             return False
-
-        # Clica na opção correta
-        encontrado = page.evaluate(
-            """([texto]) => {
-                const items = document.querySelectorAll('.p-dropdown-item, .p-listbox-item');
-                for (const item of items) {
-                    if (item.textContent.trim().toLowerCase().includes(texto.toLowerCase())) {
-                        item.click();
-                        return true;
-                    }
-                }
-                return false;
-            }""",
-            [texto_alvo],
-        )
-        return bool(encontrado)
-
+        dropdown.click()
+        page.wait_for_timeout(500)
+        
+        # Localiza o item visível na lista
+        option = page.locator(".p-dropdown-panel:visible .p-dropdown-item, .p-listbox-panel:visible .p-listbox-item").filter(has_text=texto_alvo).first
+        if option.is_visible():
+            option.click()
+            page.wait_for_timeout(500)
+            return True
+        return False
     except Exception:
         return False
 
@@ -546,63 +408,34 @@ def _primeng_list_options(page: Page, placeholder: str) -> list[str]:
     """Abre um p-dropdown e retorna todas as opções disponíveis."""
     opcoes: list[str] = []
     try:
-        page.evaluate(
-            """([ph]) => {
-                const spans = document.querySelectorAll('.p-dropdown-label, .p-placeholder');
-                for (const s of spans) {
-                    if (s.textContent.trim().toLowerCase().includes(ph.toLowerCase())) {
-                        s.closest('.p-dropdown, p-dropdown').click();
-                        return;
-                    }
-                }
-            }""",
-            [placeholder],
-        )
-        page.wait_for_timeout(800)
-        page.wait_for_selector(".p-dropdown-item", timeout=WAIT_SM)
-
-        opcoes = page.evaluate("""() =>
-            Array.from(document.querySelectorAll('.p-dropdown-item'))
-                .map(i => i.textContent.trim())
-                .filter(t => t.length > 0)
-        """)
+        dropdown = page.locator(f'p-dropdown[placeholder*="{placeholder}" i], p-dropdown:has(span:has-text("{placeholder}"))').first
+        if not dropdown.is_visible():
+            return opcoes
+        dropdown.click()
+        page.wait_for_timeout(500)
+        
+        # Localiza os itens visíveis no painel
+        items = page.locator(".p-dropdown-panel:visible .p-dropdown-item, .p-listbox-panel:visible .p-listbox-item")
+        opcoes = [text.strip() for text in items.all_inner_texts() if text.strip()]
+        
+        # Fecha o dropdown
         page.keyboard.press("Escape")
-        page.wait_for_timeout(400)
-
+        page.wait_for_timeout(300)
     except Exception:
         try:
             page.keyboard.press("Escape")
         except Exception:
             pass
-
     return opcoes
 
 
 def _primeng_clear(page: Page, placeholder: str) -> None:
     """Limpa a seleção de um p-dropdown tentando clicar no ícone de clear."""
     try:
-        limpo = page.evaluate(
-            """([ph]) => {
-                // Tenta pelo ícone de limpar
-                const clears = document.querySelectorAll('.p-dropdown-clear-icon');
-                for (const c of clears) {
-                    const dd = c.closest('.p-dropdown, p-dropdown');
-                    if (dd) {
-                        const label = dd.querySelector('.p-dropdown-label');
-                        if (label && !label.classList.contains('p-placeholder')) {
-                            c.click();
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }""",
-            [placeholder],
-        )
-
-        if not limpo:
-            # Fallback: seleciona o primeiro item (placeholder)
-            _primeng_select(page, placeholder, "")
-
+        dropdown = page.locator(f'p-dropdown[placeholder*="{placeholder}" i], p-dropdown:has(span:has-text("{placeholder}"))').first
+        clear_btn = dropdown.locator(".p-dropdown-clear-icon")
+        if clear_btn.is_visible():
+            clear_btn.click()
+            page.wait_for_timeout(500)
     except Exception:
         pass

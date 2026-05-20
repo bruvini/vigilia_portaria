@@ -87,19 +87,13 @@ def _render_filtros() -> dict:
             help="Separe os termos por vírgula. A busca é feita no título e no texto do ato.",
         )
 
-    fontes = st.multiselect(
-        "Fontes de Pesquisa",
-        options=[
-            "Diário Oficial da União",
-            "Diário Oficial de Santa Catarina",
-            "Diário Oficial de Joinville",
-        ],
-        default=["Diário Oficial da União"],
-        help=(
-            "Selecione as fontes a serem consultadas. "
-            "DOU e DOE-SC disponíveis. Joinville em desenvolvimento."
-        ),
-    )
+    fontes = []
+    if st.session_state.get("src_dou", True):
+        fontes.append("Diário Oficial da União")
+    if st.session_state.get("src_doesc", False):
+        fontes.append("Diário Oficial de Santa Catarina")
+    if st.session_state.get("src_doej", False):
+        fontes.append("Diário Oficial de Joinville")
 
     return {
         "data": data_pub,
@@ -138,30 +132,62 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
     )
 
     for _, linha in df.iterrows():
-        titulo_html    = _destacar_palavras(str(linha.get("titulo", "")), palavras_chave)
-        descricao_html = _destacar_palavras(str(linha.get("descricao", "")), palavras_chave)
+        titulo         = str(linha.get("titulo", ""))
+        descricao      = str(linha.get("descricao", ""))
         hierarquia     = str(linha.get("hierarquia", ""))
         link           = str(linha.get("link", ""))
         origem         = str(linha.get("origem", "DOU"))
+        data_pub       = str(linha.get("data", ""))
 
-        if link and not link.startswith("http"):
-            url_completa = f"https://www.in.gov.br{link}"
-        else:
-            url_completa = link
+        if not data_pub:
+            data_pub = date.today().strftime("%d/%m/%Y")
 
         badge_origem = _badge_origem(origem)
 
-        st.markdown(f"""
-        <div class="result-card">
-            <div class="result-breadcrumb">{hierarquia} {badge_origem}</div>
-            <div class="result-title">
-                {"<a href='" + url_completa + "' target='_blank' rel='noopener noreferrer'>" if url_completa else "<span>"}
-                    {titulo_html}
-                {"</a>" if url_completa else "</span>"}
-            </div>
-            <div class="result-description">{descricao_html}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            # Layout de metadados
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"<div style='font-size: 0.8rem; color: #94a3b8; text-transform: uppercase;'>{hierarquia}</div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown(
+                    f"<div style='text-align: right; font-size: 0.8rem; color: #94a3b8;'>"
+                    f"Publicação: {data_pub} {badge_origem}"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            # DOU vs DOE-SC
+            if origem == "DOU" or "União" in origem:
+                # O título é um link clicável
+                if link and not link.startswith("http"):
+                    url_completa = f"https://www.in.gov.br{link}"
+                else:
+                    url_completa = link
+
+                titulo_html = _destacar_palavras(titulo, palavras_chave)
+                st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'><a href='{url_completa}' target='_blank' rel='noopener noreferrer'>{titulo_html}</a></h4>", unsafe_allow_html=True)
+
+                descricao_html = _destacar_palavras(descricao, palavras_chave)
+                st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
+
+            else: # DOE-SC (ou outras)
+                # Verifica menção simples a "Joinville" no conteúdo completo
+                menciona_joinville = "joinville" in descricao.lower() or "joinville" in titulo.lower()
+                badge_joinville = ""
+                if menciona_joinville:
+                    badge_joinville = (
+                        '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
+                        'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
+                        'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
+                    )
+
+                titulo_html = _destacar_palavras(titulo, palavras_chave)
+                st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_joinville}</h4>", unsafe_allow_html=True)
+
+                descricao_html = _destacar_palavras(descricao, palavras_chave)
+                with st.expander("Clique para ver o texto completo da publicação"):
+                    st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
 
 
 def _badge_origem(origem: str) -> str:
@@ -207,6 +233,8 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
     fontes_sel = filtros["fontes"]
     data       = filtros["data"]
     palavras   = filtros["palavras"]
+    
+    data_str = data.strftime("%d/%m/%Y")
 
     for fonte in fontes_sel:
         if fonte == "Diário Oficial da União":
@@ -214,6 +242,7 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
                 try:
                     df = _executar_dou(data, palavras)
                     df["origem"] = "DOU"
+                    df["data"] = data_str
                     frames.append(df)
                     st.write(f"{len(df)} resultado(s) encontrado(s) no DOU.")
                 except Exception as e:
@@ -223,6 +252,8 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
             with st.status(f"Varrendo {fonte}...", expanded=False):
                 try:
                     df = _executar_doesc(data, palavras)
+                    df["origem"] = "DOE-SC"
+                    df["data"] = data_str
                     frames.append(df)
                     st.write(f"{len(df)} resultado(s) encontrado(s) no DOE-SC.")
                 except Exception as e:
@@ -232,7 +263,7 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
             st.info("O módulo do Diário Oficial de Joinville está em desenvolvimento.")
 
     if not frames:
-        return pd.DataFrame(columns=["origem", "hierarquia", "titulo", "link", "descricao"])
+        return pd.DataFrame(columns=["origem", "hierarquia", "titulo", "link", "descricao", "data"])
 
     return pd.concat(frames, ignore_index=True)
 

@@ -184,3 +184,24 @@ buscar_doesc(
 ---
 
 *Secretaria Municipal de Saúde de Joinville — Unidade de Convênios e Parcerias*
+
+---
+
+## Regras Visuais de Exibição e Interface
+
+A interface da Plataforma Vigília foi refatorada e harmonizada seguindo diretrizes visuais unificadas:
+
+1. **Cards Selecionáveis na Barra Lateral (Sidebar)**:
+   - Substituição do seletor multiselect por cards informativos verticais (`st.container(border=True)`) com checkbox de seleção.
+   - Textos explicativos para cada Diário Oficial indicando as regras de varredura executadas pelo robô Vigília.
+
+2. **Exibição Harmonizada**:
+   - Todo resultado é renderizado em um card padronizado (`st.container(border=True)`).
+   - Metadados exibidos no cabeçalho: Hierarquia da publicação, data e um badge colorido que indica a origem (DOU, DOE-SC, etc.).
+
+3. **Links e Texto Integral**:
+   - **Diário Oficial da União (DOU)**: Título clicável com link externo de redirecionamento.
+   - **Diário Oficial de Santa Catarina (DOE-SC)**: Texto integral ocultado por padrão e exibido sob demanda através de um componente expansível (`st.expander`), mantendo o layout limpo e legível.
+
+4. **Identificação de Município**:
+   - Varredura de texto simples no ato da renderização dos resultados do DOE-SC. Se houver menção à cidade de **Joinville**, um badge estilizado azul destacado é adicionado ao lado do título: `📍 Município: Joinville`.

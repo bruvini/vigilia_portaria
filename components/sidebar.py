@@ -12,18 +12,45 @@ def render_sidebar():
         """, unsafe_allow_html=True)
 
         st.markdown("""
-        Plataforma institucional para monitoramento automatizado de:
-
-        - Atos oficiais
-        - Portarias
-        - Convênios
-        - Regulamentações
-        - Publicações governamentais
+        Plataforma institucional para monitoramento automatizado de publicações governamentais.
         """)
+
+        st.divider()
+        st.markdown("### Diários Oficiais")
+
+        # Card 1: Diário Oficial da União
+        with st.container(border=True):
+            st.checkbox(
+                "Diário Oficial da União",
+                value=True,
+                key="src_dou",
+                help="Selecionar Diário Oficial da União para busca"
+            )
+            st.caption('Regra: Varredura na Seção 1 (Atos Normativos) e Edições Extras. Filtros aplicados diretamente no portal: Organização "Ministério da Saúde" e Tipo de Ato "Portaria".')
+
+        # Card 2: Diário Oficial de Santa Catarina
+        with st.container(border=True):
+            st.checkbox(
+                "Diário Oficial de Santa Catarina",
+                value=False,
+                key="src_doesc",
+                help="Selecionar Diário Oficial de Santa Catarina para busca"
+            )
+            st.caption('Regra: Varredura automatizada em Edições Ordinárias e Extras. Filtros internos aplicados: Categoria "Saúde" e assunto "PORTARIA". Extração do texto integral.')
+
+        # Card 3: Diário Oficial de Joinville
+        with st.container(border=True):
+            st.checkbox(
+                "Diário Oficial de Joinville",
+                value=False,
+                key="src_doej",
+                help="Módulo do Diário Oficial de Joinville em desenvolvimento"
+            )
+            st.caption('Regra: Varredura nos atos do município de Joinville. (Em desenvolvimento).')
 
         st.divider()
 
         st.markdown("""
         **Secretaria Municipal de Saúde de Joinville**  
         Unidade de Convênios e Parcerias
-        """)
+        """)
