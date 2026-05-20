@@ -193,47 +193,52 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
                 else: # DOE-SC (ou outras)
                     tipo_ato     = str(linha.get("tipo", ""))
                     orgao_ato    = str(linha.get("orgao", ""))
+                    resumo       = str(linha.get("resumo", ""))
                     palavra_enc  = str(linha.get("palavra_encontrada", ""))
 
-                    # Badge Joinville — garantido pelo service para todos os resultados DOE-SC
-                    badge_joinville = (
-                        '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
-                        'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
-                        'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
-                    )
-
+                    # Título com destaque
                     titulo_html = _destacar_palavras(titulo, palavras_chave)
-                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_joinville}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html}</h4>", unsafe_allow_html=True)
 
-                    # Metadados secundários (tipo + órgão)
-                    meta_partes = []
-                    if tipo_ato:
-                        meta_partes.append(f"<strong>Tipo:</strong> {tipo_ato}")
+                    # Órgão
                     if orgao_ato:
-                        meta_partes.append(f"<strong>Órgão:</strong> {orgao_ato}")
-                    if palavra_enc:
-                        meta_partes.append(f"<strong>Termo encontrado:</strong> {palavra_enc}")
-                    if meta_partes:
                         st.markdown(
-                            "<div style='font-size:0.82rem; color:#64748b; margin-bottom:8px;'>"
-                            + " &nbsp;|&nbsp; ".join(meta_partes)
-                            + "</div>",
+                            f"<div style='margin-bottom: 12px; font-size: 0.9rem; color: #475569;'>"
+                            f"<strong>Órgão:</strong><br>{orgao_ato}</div>",
                             unsafe_allow_html=True
                         )
 
-                    descricao_html = _destacar_palavras(descricao, palavras_chave)
-                    with st.expander("Clique para ver o trecho extraído"):
-                        st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.7; white-space: pre-wrap;'>{descricao_html}</div>", unsafe_allow_html=True)
-                    
+                    # Resumo
+                    if resumo and resumo != "Resumo não disponível.":
+                        resumo_html = _destacar_palavras(resumo, palavras_chave)
+                        st.markdown(
+                            f"<div style='margin-bottom: 12px; font-size: 0.95rem; color: #334155;'>"
+                            f"<strong>Resumo:</strong><br>{resumo_html}</div>",
+                            unsafe_allow_html=True
+                        )
+
+                    # Trecho relevante
+                    if descricao:
+                        descricao_html = _destacar_palavras(descricao, palavras_chave)
+                        st.markdown(
+                            f"<div style='margin-bottom: 16px; font-size: 0.95rem; color: #334155; "
+                            f"padding: 10px; background-color: #f8fafc; border-left: 3px solid #0ea5e9; border-radius: 4px;'>"
+                            f"<strong>Trecho relevante:</strong><br>“{descricao_html}”</div>",
+                            unsafe_allow_html=True
+                        )
+
+                    # Botão de Acesso Oficial
                     link_certificado = str(linha.get("link_certificado", ""))
                     if link_certificado:
                         st.markdown(
                             f'<a href="{link_certificado}" target="_blank" rel="noopener noreferrer" '
-                            f'style="display:inline-block; margin-top:8px; padding:6px 12px; '
-                            f'background-color:#f1f5f9; color:#0f172a; text-decoration:none; '
-                            f'border-radius:6px; font-size:0.85rem; font-weight:600; '
-                            f'border:1px solid #e2e8f0; transition:all 0.2s ease;">'
-                            f'📄 Abrir publicação oficial</a>',
+                            f'style="display:inline-block; padding:8px 16px; '
+                            f'background-color:#0ea5e9; color:#ffffff; text-decoration:none; '
+                            f'border-radius:6px; font-size:0.9rem; font-weight:600; '
+                            f'transition:background-color 0.2s ease, box-shadow 0.2s ease;" '
+                            f'onmouseover="this.style.backgroundColor=\'#0284c7\'; this.style.boxShadow=\'0 4px 12px rgba(14, 165, 233, 0.3)\';" '
+                            f'onmouseout="this.style.backgroundColor=\'#0ea5e9\'; this.style.boxShadow=\'none\';">'
+                            f'📄 Acessar publicação oficial</a>',
                             unsafe_allow_html=True
                         )
 
