@@ -224,6 +224,19 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
                     descricao_html = _destacar_palavras(descricao, palavras_chave)
                     with st.expander("Clique para ver o trecho extraído"):
                         st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.7; white-space: pre-wrap;'>{descricao_html}</div>", unsafe_allow_html=True)
+                    
+                    link_certificado = str(linha.get("link_certificado", ""))
+                    if link_certificado:
+                        st.markdown(
+                            f'<a href="{link_certificado}" target="_blank" rel="noopener noreferrer" '
+                            f'style="display:inline-block; margin-top:8px; padding:6px 12px; '
+                            f'background-color:#f1f5f9; color:#0f172a; text-decoration:none; '
+                            f'border-radius:6px; font-size:0.85rem; font-weight:600; '
+                            f'border:1px solid #e2e8f0; transition:all 0.2s ease;">'
+                            f'📄 Abrir publicação oficial</a>',
+                            unsafe_allow_html=True
+                        )
+
 
 
 def _badge_origem(origem: str) -> str:

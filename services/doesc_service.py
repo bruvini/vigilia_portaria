@@ -64,7 +64,7 @@ CATEGORIAS_ALVO = [
 # Chave obrigatória de Joinville — sem isso o ato é descartado
 KEYWORD_JOINVILLE = "joinville"
 
-COLUNAS = ["origem", "hierarquia", "titulo", "link", "descricao", "tipo", "orgao", "pagina", "palavra_encontrada"]
+COLUNAS = ["origem", "hierarquia", "titulo", "link", "link_certificado", "descricao", "tipo", "orgao", "pagina", "palavra_encontrada"]
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +349,8 @@ def _processar_ato(
             section.query_selector("a.mr-2, a:has-text('Ver')")
         )
 
+        link_certificado = ""
+
         if not link_detalhe:
             texto_completo = metadados
             logger.debug(f"Ato {idx}: sem link de detalhe, usando metadados do card")
@@ -359,6 +361,11 @@ def _processar_ato(
 
             texto_completo = _extrair_texto_detalhe(page)
             logger.debug(f"Ato {idx}: texto extraído — {len(texto_completo)} chars")
+
+            # ── Captura link do botão 'Publicação Certificada' ────────────────
+            link_certificado = _capturar_link_certificado(page)
+            if link_certificado:
+                logger.info(f"Ato {idx}: link certificado capturado — {link_certificado[:80]}")
 
             page.click("button[label='Voltar']")
             _wait_angular(page)
@@ -398,14 +405,15 @@ def _processar_ato(
         logger.info(f"Ato {idx}: INCLUÍDO — '{titulo[:60]}...' | tipo={tipo} | orgao={orgao[:40]}")
 
         return {
-            "origem":           "DOE-SC",
-            "hierarquia":       f"DOE-SC › {categoria} › {assunto}",
-            "titulo":           titulo,
-            "link":             "",
-            "descricao":        trecho,
-            "tipo":             tipo,
-            "orgao":            orgao,
-            "pagina":           "",
+            "origem":            "DOE-SC",
+            "hierarquia":        f"DOE-SC › {categoria} › {assunto}",
+            "titulo":            titulo,
+            "link":              "",
+            "link_certificado":  link_certificado,
+            "descricao":         trecho,
+            "tipo":              tipo,
+            "orgao":             orgao,
+            "pagina":            "",
             "palavra_encontrada": palavra_encontrada,
         }
 
@@ -426,13 +434,39 @@ def _processar_ato(
 # Normalização de texto
 # ---------------------------------------------------------------------------
 
+# Padrões de linhas que devem ser removidas (tabelas financeiras, códigos, etc.)
+_RE_LINHAS_LIXO = re.compile(
+    r"""(
+        ^\s*[0-9]{5,}\s*$                # linhas só com número ≥5 dígitos (códigos)
+      | ^\s*[\d.,]+\s*$                  # linhas só com valores numéricos/decimais
+      | ^\s*\d+[.,]\d+\s*[.,]\d+\s*$   # padrões financeiros: 1.234,56
+      | ^\s*R\$\s*[\d.,]+               # valores em reais
+      | ^\s*[A-Z0-9]{2,}\s{1,3}[A-Z0-9]{2,}\s{1,3}[\d.,]+  # tabela codigos
+      | ^\s*Total.*?[\d.,]+\s*$          # linhas de total
+      | ^\s*Subtotal.*?[\d.,]+\s*$
+      | ^\s*FONTE\s+DE\s+RECURSOS       # cabeçalho de tabela financeira
+      | ^\s*ELEMENTO\s+DE\s+DESPESA
+      | ^\s*NATUREZA\s+DE\s+DESPESA
+      | ^\s*CÓD\.?\s+SIAF               # código SIAF
+      | ^\s*[0-9]{4}\s+[0-9]{4}         # linhas de tabela com 2+ grupos de 4+ dígitos
+    )""",
+    re.VERBOSE | re.IGNORECASE | re.MULTILINE,
+)
+
+_RE_BLOCOS_TABELA = re.compile(
+    r"([0-9]{1,4}[\s\t]+){4,}",  # 4+ números separados por espaço (linha de tabela)
+    re.MULTILINE,
+)
+
+
 def _normalizar_texto(texto: str) -> str:
     """
-    Normaliza o texto extraído:
+    Normaliza e limpa o texto extraído do DOE-SC:
     - Remove múltiplos espaços e tabulações
     - Corrige quebras de linha excessivas
     - Une palavras quebradas por hífen no final da linha
     - Remove caracteres de controle inválidos
+    - Remove linhas de tabelas financeiras e códigos SIAF/orçamentários
     - Preserva acentuação (não remove diacríticos)
     """
     if not texto:
@@ -441,57 +475,106 @@ def _normalizar_texto(texto: str) -> str:
     # Une palavras quebradas com hífen no final da linha (ex: "Secre-\ntaria" → "Secretaria")
     texto = re.sub(r"-\s*\n\s*", "", texto)
 
-    # Substitui múltiplas quebras de linha por no máximo duas
-    texto = re.sub(r"\n{3,}", "\n\n", texto)
-
     # Remove caracteres de controle (exceto \n e \t)
     texto = "".join(c for c in texto if unicodedata.category(c)[0] != "C" or c in "\n\t")
 
     # Substitui tabulações por espaço
     texto = texto.replace("\t", " ")
 
+    # Remove blocos de tabela (4+ números separados por espaços em sequência)
+    texto = _RE_BLOCOS_TABELA.sub(" ", texto)
+
+    # Remove linhas que são apenas lixo financeiro/tabular
+    linhas_filtradas = []
+    for linha in texto.splitlines():
+        linha_s = linha.strip()
+        if linha_s and _RE_LINHAS_LIXO.search(linha_s):
+            continue  # descarta linha de lixo
+        linhas_filtradas.append(linha_s)
+
+    texto = "\n".join(linhas_filtradas)
+
+    # Substitui múltiplas quebras de linha por no máximo duas
+    texto = re.sub(r"\n{3,}", "\n\n", texto)
+
     # Remove espaços duplicados dentro de uma linha
     texto = re.sub(r" {2,}", " ", texto)
-
-    # Remove espaços no início e fim de cada linha
-    linhas = [l.strip() for l in texto.splitlines()]
-    texto = "\n".join(linhas)
 
     return texto.strip()
 
 
 # ---------------------------------------------------------------------------
-# Extração de contexto
+# Extração de contexto por frases
 # ---------------------------------------------------------------------------
 
-def _extrair_trecho_contexto(texto: str, palavra_chave: str, janela: int = 400) -> str:
+def _extrair_trecho_contexto(texto: str, palavra_chave: str, max_chars: int = 800) -> str:
     """
-    Extrai um trecho de texto ao redor da primeira ocorrência da palavra-chave.
+    Extrai um trecho inteligente ao redor da ocorrência da palavra-chave.
+
+    Estratégia:
+    1. Divide o texto em frases (separadas por ponto, exclamação, interrogação, \n\n)
+    2. Encontra as frases que contêm a palavra-chave
+    3. Adiciona frases adjacentes para dar contexto
+    4. Limita ao tamanho máximo
 
     Args:
-        texto:        Texto completo normalizado.
+        texto:       Texto completo normalizado.
         palavra_chave: Palavra a buscar (case-insensitive).
-        janela:       Número de caracteres de contexto em cada lado.
+        max_chars:   Tamanho máximo do trecho retornado.
 
     Returns:
-        Trecho com [janela] chars antes e depois da ocorrência.
+        Trecho legível em prosa com frases completas.
     """
-    idx = texto.lower().find(palavra_chave.lower())
-    if idx == -1:
-        # Sem ocorrência — retorna início do texto
-        return texto[:janela * 2]
+    if not texto:
+        return ""
 
-    inicio = max(0, idx - janela)
-    fim = min(len(texto), idx + len(palavra_chave) + janela)
-    trecho = texto[inicio:fim]
+    # Divide em frases usando pontuação e parágrafos como delimitadores
+    frases = re.split(r"(?<=[.!?])\s+|\n{2,}", texto)
+    frases = [f.strip() for f in frases if f.strip() and len(f.strip()) > 10]
 
-    # Adiciona reticências se o trecho não começou/terminou no início/fim
-    if inicio > 0:
+    if not frases:
+        return texto[:max_chars]
+
+    kw_lower = palavra_chave.lower()
+    indices_com_kw = [i for i, f in enumerate(frases) if kw_lower in f.lower()]
+
+    if not indices_com_kw:
+        # Não achou por frase — fallback para busca por posição no texto bruto
+        idx = texto.lower().find(kw_lower)
+        if idx == -1:
+            return texto[:max_chars]
+        inicio = max(0, idx - 300)
+        fim = min(len(texto), idx + len(palavra_chave) + 300)
+        trecho = texto[inicio:fim].strip()
+        if inicio > 0:
+            trecho = "..." + trecho
+        if fim < len(texto):
+            trecho += "..."
+        return trecho
+
+    # Coleta frases ao redor do primeiro índice com keyword
+    alvo = indices_com_kw[0]
+    # Tenta incluir 1 frase antes e 2 depois para contexto
+    inicio_idx = max(0, alvo - 1)
+    fim_idx = min(len(frases), alvo + 3)
+
+    trecho_frases = frases[inicio_idx:fim_idx]
+    trecho = " ".join(trecho_frases)
+
+    # Se ainda muito curto, expande o contexto
+    if len(trecho) < 120 and len(frases) > fim_idx:
+        trecho_frases = frases[max(0, alvo - 2):min(len(frases), alvo + 5)]
+        trecho = " ".join(trecho_frases)
+
+    # Trunca se exceder o máximo
+    if len(trecho) > max_chars:
+        trecho = trecho[:max_chars].rsplit(" ", 1)[0] + "..."
+
+    # Indica contexto parcial
+    if inicio_idx > 0:
         trecho = "..." + trecho
-    if fim < len(texto):
-        trecho = trecho + "..."
 
-    return trecho
+    return trecho.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +610,65 @@ def _identificar_orgao(texto: str) -> str:
 # ---------------------------------------------------------------------------
 # Utilitários DOM
 # ---------------------------------------------------------------------------
+
+def _capturar_link_certificado(page: Page) -> str:
+    """
+    Tenta capturar a URL da publicação certificada a partir do botão
+    'Publicação Certificada' presente na tela de detalhe do ato.
+
+    O portal DOE-SC usa botões que podem abrir PDFs em nova aba ou redirecionar
+    para uma URL de certificação. Esta função tenta:
+    1. Encontrar o elemento pelo atributo label="Publicação Certificada"
+    2. Capturar o href ou o data-url associado
+    3. Interceptar via click + nova aba se necessário
+
+    Returns:
+        URL da publicação certificada, ou string vazia se não encontrada.
+    """
+    try:
+        # Seletores mais prováveis para o botão de certificação
+        seletores = [
+            "button[label='Publicação Certificada']",
+            "button:has-text('Publicação Certificada')",
+            "a:has-text('Publicação Certificada')",
+            "a[href*='certificad']",
+            "a[href*='publicacao']",
+        ]
+
+        for sel in seletores:
+            try:
+                el = page.query_selector(sel)
+                if not el or not el.is_visible():
+                    continue
+
+                # Tenta capturar href diretamente
+                href = el.get_attribute("href") or ""
+                if href and href.startswith("http"):
+                    return href
+
+                # Tenta via ng-reflect-href (Angular) ou routerLink
+                for attr in ["ng-reflect-href", "ng-reflect-router-link", "data-url", "data-href"]:
+                    val = el.get_attribute(attr) or ""
+                    if val and val.startswith("http"):
+                        return val
+
+                # Intercepção via nova aba — o clique pode abrir um PDF
+                with page.context.expect_page(timeout=3000) as new_page_info:
+                    el.click()
+                new_page = new_page_info.value
+                url = new_page.url
+                new_page.close()
+                if url and url != "about:blank":
+                    return url
+
+            except Exception:
+                continue
+
+    except Exception as exc:
+        logger.debug(f"Não foi possível capturar link certificado: {exc}")
+
+    return ""
+
 
 def _extrair_titulo_do_card(metadados: str, fallback: str) -> str:
     """Tenta extrair título do ato dos metadados do card."""

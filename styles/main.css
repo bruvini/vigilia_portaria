@@ -2,25 +2,51 @@
    Tema Claro – Plataforma Vigília
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* ---------------------------------------------------------
+   Remove elementos padrão do Streamlit
+   --------------------------------------------------------- */
+
+/* Cabeçalho do topo com nome do app e links de página */
+#MainMenu,
+header[data-testid="stHeader"],
+footer[data-testid="stFooter"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+div[data-testid="stSidebarNav"],
+.reportview-container .main footer,
+[data-testid="stSidebarNavItems"],
+[data-testid="stSidebarNavSeparator"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Remove padding topo que vem do header */
+.appview-container .main .block-container {
+    padding-top: 0 !important;
+}
 
 /* ---------------------------------------------------------
    Base
    --------------------------------------------------------- */
-.stApp {
+html, body, .stApp {
     background-color: #f8fafc;
     font-family: 'Inter', sans-serif;
+    color: #334155;
 }
 
 .block-container {
     padding-top: 0rem !important;
     padding-bottom: 2rem;
-    padding-left: 4rem;
-    padding-right: 4rem;
+    padding-left: 3.5rem;
+    padding-right: 3.5rem;
+    max-width: 1200px;
 }
 
 /* ---------------------------------------------------------
-   Banner / Hero  (largura expandida — max 800px)
+   Banner / Hero
    --------------------------------------------------------- */
 .hero-wrapper {
     display: flex;
@@ -82,7 +108,7 @@
 }
 
 /* ---------------------------------------------------------
-   Cards de Resultado
+   Contagem de resultados
    --------------------------------------------------------- */
 .result-count {
     font-size: 0.85rem;
@@ -92,6 +118,9 @@
     letter-spacing: 0.01em;
 }
 
+/* ---------------------------------------------------------
+   Cards de Resultado
+   --------------------------------------------------------- */
 .result-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -163,62 +192,119 @@ mark.keyword-highlight {
 }
 
 /* ---------------------------------------------------------
-   Cards Informativos
-   --------------------------------------------------------- */
-.custom-card {
-    background: #ffffff;
-    padding: 2rem;
-    border-radius: 16px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    height: 100%;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.custom-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-}
-
-.card-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 1rem;
-    gap: 0.75rem;
-}
-
-.card-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background-color: #f1f5f9;
-    color: #0ea5e9;
-}
-
-.card-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #0f172a;
-    margin: 0;
-}
-
-.card-text {
-    color: #475569;
-    line-height: 1.6;
-    font-size: 0.95rem;
-}
-
-/* ---------------------------------------------------------
-   Sidebar
+   Sidebar premium
    --------------------------------------------------------- */
 section[data-testid="stSidebar"] {
     background-color: #ffffff;
     border-right: 1px solid #e2e8f0;
+    box-shadow: 2px 0 12px rgba(15, 23, 42, 0.04);
 }
 
+section[data-testid="stSidebar"] > div {
+    padding-top: 0 !important;
+}
+
+/* Topo da sidebar – cabeçalho customizado */
+.sidebar-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    padding: 1.5rem 1.25rem 1.25rem;
+    margin: -1rem -1rem 1rem -1rem;
+    border-radius: 0 0 16px 16px;
+    text-align: center;
+}
+
+.sidebar-logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    margin: 0 auto 0.75rem;
+    display: block;
+    filter: drop-shadow(0 2px 8px rgba(14, 165, 233, 0.3));
+}
+
+.sidebar-app-name {
+    color: #ffffff;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0 0 0.2rem 0;
+}
+
+.sidebar-subtitle {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 0;
+    font-weight: 500;
+}
+
+/* Rótulo de seção da sidebar */
+.sidebar-section-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin: 0.5rem 0 0.6rem 0;
+}
+
+/* Cards de fonte/diário na sidebar */
+.sidebar-source-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.75rem 1rem 0.6rem;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    cursor: pointer;
+}
+
+.sidebar-source-card:hover {
+    border-color: #7dd3fc;
+    background: #f0f9ff;
+}
+
+.sidebar-source-card.active {
+    border-color: #0ea5e9;
+    background: #f0f9ff;
+}
+
+/* Regra nos cards */
+.sidebar-rule-text {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-top: 0.3rem;
+}
+
+/* Status badge (Em desenvolvimento) */
+.sidebar-badge-dev {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #d97706;
+    background: #fef3c7;
+    border-radius: 4px;
+    padding: 1px 6px;
+    letter-spacing: 0.03em;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* Rodapé da sidebar */
+.sidebar-footer-text {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.sidebar-footer-text strong {
+    color: #64748b;
+}
+
+/* Esconde ícone de colapso do menu de páginas */
 section[data-testid="stSidebar"] .stMarkdown {
     color: #334155;
 }
@@ -228,6 +314,41 @@ section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
     color: #0f172a !important;
     font-weight: 600;
+}
+
+/* Ajuste de checkbox na sidebar */
+section[data-testid="stSidebar"] .stCheckbox label {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+}
+
+/* ---------------------------------------------------------
+   Footer customizado
+   --------------------------------------------------------- */
+.vigilia-footer {
+    text-align: center;
+    padding: 2rem 0 0.5rem;
+}
+
+.vigilia-footer-divider {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin-bottom: 1.25rem;
+}
+
+.vigilia-footer-brand {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.25rem;
+}
+
+.vigilia-footer-sub {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-bottom: 0.15rem;
 }
 
 /* ---------------------------------------------------------
@@ -244,4 +365,19 @@ p {
 
 hr {
     border-color: #e2e8f0 !important;
+}
+
+/* Botão primário do Streamlit */
+button[kind="primary"] {
+    background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.02em !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+button[kind="primary"]:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4) !important;
 }

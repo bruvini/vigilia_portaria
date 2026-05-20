@@ -1,68 +1,139 @@
+import base64
+from pathlib import Path
+
 import streamlit as st
+
+
+# ---------------------------------------------------------------------------
+# Easter Egg
+# ---------------------------------------------------------------------------
 
 if hasattr(st, "dialog"):
     @st.dialog("Surpresa!")
-    def mostrar_surpresa():
+    def _mostrar_surpresa():
         st.image("assets/foto_barbara.png", use_container_width=True)
-        if st.button("Fechar"):
+        if st.button("Fechar", key="fechar_barbara_dialog"):
             st.rerun()
 else:
-    def mostrar_surpresa():
+    def _mostrar_surpresa():
         st.session_state["show_barbara"] = True
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _img_to_base64(path: str) -> str:
+    """Converte imagem para base64 para embutir no HTML sem depender de URL."""
+    try:
+        data = Path(path).read_bytes()
+        ext = Path(path).suffix.lstrip(".").lower()
+        mime = "image/png" if ext == "png" else f"image/{ext}"
+        b64 = base64.b64encode(data).decode()
+        return f"data:{mime};base64,{b64}"
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Render principal
+# ---------------------------------------------------------------------------
 
 def render_sidebar():
     with st.sidebar:
-        st.markdown("""
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            <h2 style="margin: 0; padding: 0; font-size: 1.5rem; color: #0f172a;">Vigília</h2>
-        </div>
-        """, unsafe_allow_html=True)
 
-        st.markdown("""
-        Plataforma institucional para monitoramento automatizado de publicações governamentais.
-        """)
+        # ── Cabeçalho escuro premium ──────────────────────────────────────────
+        logo_src = _img_to_base64("assets/icone_vigilia.png")
+        logo_tag = (
+            f'<img class="sidebar-logo" src="{logo_src}" alt="Vigília Logo">'
+            if logo_src else
+            '<div style="width:64px;height:64px;margin:0 auto 0.75rem;'
+            'background:#1e3a5f;border-radius:50%;"></div>'
+        )
 
-        st.divider()
-        st.markdown("### Diários Oficiais")
+        st.markdown(
+            f"""
+            <div class="sidebar-header">
+                {logo_tag}
+                <div class="sidebar-app-name">Vigília</div>
+                <div class="sidebar-subtitle">Monitoramento Estratégico</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        # Card 1: Diário Oficial da União (inicia desmarcado - value=False)
+        # ── Descrição institucional ───────────────────────────────────────────
+        st.markdown(
+            """
+            <p style="font-size:0.82rem; color:#475569; line-height:1.6; margin:0 0 1rem 0;">
+                Plataforma institucional de monitoramento automatizado de publicações
+                em diários oficiais.
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ── Seção: Fontes de pesquisa ─────────────────────────────────────────
+        st.markdown(
+            '<div class="sidebar-section-label">Diários Oficiais</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Card 1 — Diário Oficial da União
         with st.container(border=True):
             st.checkbox(
                 "Diário Oficial da União",
                 value=False,
                 key="src_dou",
-                help="Selecionar Diário Oficial da União para busca"
             )
-            st.caption('Regra: Varredura na Seção 1 (Atos Normativos) e Edições Extras. Filtros aplicados diretamente no portal: Organização "Ministério da Saúde" e Tipo de Ato "Portaria".')
+            st.markdown(
+                '<div class="sidebar-rule-text">'
+                'Varredura na Seção 1 (Atos Normativos). Filtros: '
+                'Organização "Ministério da Saúde" · Tipo "Portaria".'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
-        # Card 2: Diário Oficial de Santa Catarina (inicia desmarcado - value=False)
+        # Card 2 — Diário Oficial de Santa Catarina
         with st.container(border=True):
             st.checkbox(
                 "Diário Oficial de Santa Catarina",
                 value=False,
                 key="src_doesc",
-                help="Selecionar Diário Oficial de Santa Catarina para busca"
             )
-            st.caption('Regra: Varredura automatizada em Edições Ordinárias e Extras. Filtros internos aplicados: Categoria "Secretarias de Estado / Saúde" e assunto todos que começam com "PORTARIA". Extração do texto integral com filtro para Município = Joinville.')
+            st.markdown(
+                '<div class="sidebar-rule-text">'
+                'Edições Ordinárias e Extras. Filtros: Categoria "Saúde" · '
+                'Assuntos iniciados por "PORTARIA" · Município = Joinville.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
-        # Card 3: Diário Oficial de Joinville (inicia desmarcado - value=False)
+        # Card 3 — Diário Oficial de Joinville
         with st.container(border=True):
             st.checkbox(
                 "Diário Oficial de Joinville",
                 value=False,
                 key="src_doej",
-                help="Módulo do Diário Oficial de Joinville em desenvolvimento"
             )
-            st.caption('Regra: Varredura nos atos do município de Joinville. (Em desenvolvimento).')
+            st.markdown(
+                '<div class="sidebar-rule-text">'
+                'Módulo em desenvolvimento.'
+                ' <span class="sidebar-badge-dev">EM BREVE</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
-        # Easter Egg da Barbara
-        st.divider()
-        if st.button("NÃO CLIQUE, BARBARA 😂", key="btn_barbara", use_container_width=True):
+        # ── Easter Egg da Barbara ─────────────────────────────────────────────
+        st.markdown("<div style='margin-top: 0.5rem;'></div>", unsafe_allow_html=True)
+
+        if st.button(
+            "NÃO CLIQUE, BARBARA 😂",
+            key="btn_barbara",
+            use_container_width=True,
+        ):
             st.balloons()
-            mostrar_surpresa()
+            _mostrar_surpresa()
 
         if not hasattr(st, "dialog") and st.session_state.get("show_barbara", False):
             with st.container(border=True):
@@ -72,9 +143,15 @@ def render_sidebar():
                     st.session_state["show_barbara"] = False
                     st.rerun()
 
-        st.divider()
+        # ── Rodapé institucional ──────────────────────────────────────────────
+        st.markdown("<hr style='border-color:#e2e8f0; margin:1rem 0 0.75rem;'>", unsafe_allow_html=True)
 
-        st.markdown("""
-        **Secretaria Municipal de Saúde de Joinville**  
-        Unidade de Convênios e Parcerias
-        """)
+        st.markdown(
+            """
+            <div class="sidebar-footer-text">
+                <strong>Secretaria Municipal de Saúde</strong><br>
+                Joinville · Unidade de Convênios e Parcerias
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
