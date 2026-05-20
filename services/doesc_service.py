@@ -35,8 +35,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="[DOE-SC API] %(levelname)s: %(message)s")
 
+import unicodedata
+
 # ---------------------------------------------------------------------------
-# Configurações
+# Configurações e Regras Institucionais
 # ---------------------------------------------------------------------------
 
 HEADERS = {
@@ -55,10 +57,73 @@ COLUNAS = [
     "tipo",
     "orgao",
     "pagina",
-    "palavra_encontrada"
+    "palavra_encontrada",
+    "score",            # Novo campo para depuração e priorização
+    "categoria_badge"   # Novo campo para UI
 ]
 
-CATEGORIAS_ALVO = ["saúde", "joinville"]
+# Regra 1: Categorias Estritas
+VALID_CATEGORIES = [
+    "secretarias de estado / saude",
+    "prefeituras municipais / joinville"
+]
+
+def normalize_text(text: str) -> str:
+    """Normaliza texto removendo acentos, espaços duplos e convertendo para minúsculas."""
+    if not text:
+        return ""
+    # Converte para minúsculo
+    text = text.lower()
+    # Remove acentos
+    text = "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+    # Remove espaços duplos e trailing
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+def is_valid_category(categoria: str) -> bool:
+    """Verifica se a categoria do ato pertence ao escopo institucional permitido."""
+    norm_cat = normalize_text(categoria)
+    # Permite pequenas variações textuais usando 'in' ou match exato
+    for valid in VALID_CATEGORIES:
+        if valid in norm_cat:
+            return True
+        # Algumas vezes vem apenas "Saúde" ou "Joinville" da API
+        if "saude" in norm_cat and "secretaria" in norm_cat:
+            return True
+        if "joinville" in norm_cat and "prefeitura" in norm_cat:
+            return True
+    return False
+
+# Regra 2: Filtrar apenas Portarias
+def is_portaria_document(titulo: str, assunto: str, tipo: str) -> bool:
+    """Valida se o documento é uma portaria válida, ignorando licitações e outros."""
+    termos = f"{titulo} {assunto} {tipo}"
+    norm_termos = normalize_text(termos)
+
+    # Rejeições explícitas
+    rejeicoes = ["licitacao", "homologacao", "julgamento", "extrato", "edital", "aviso"]
+    for rej in rejeicoes:
+        # Se contiver a palavra exata de rejeição (ex: "aviso de licitação")
+        if re.search(rf"\b{rej}\b", norm_termos):
+            return False
+
+    # Deve iniciar ou conter PORTARIA de forma forte
+    # r"^\s*portaria\b" aplicado ao título ou ao assunto
+    if re.search(r"^\s*portaria\b", normalize_text(titulo)):
+        return True
+    if re.search(r"^\s*portaria\b", normalize_text(assunto)):
+        return True
+    if re.search(r"^\s*portaria\b", normalize_text(tipo)):
+        return True
+    
+    # Se "portaria" estiver solto no texto e não for rejeitado
+    if "portaria" in norm_termos:
+        return True
+        
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -96,14 +161,13 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
 
         cat_ids = []
         for cat in categorias_api:
-            label = cat.get("label", "").lower()
-            if any(alvo in label for alvo in CATEGORIAS_ALVO):
+            if is_valid_category(cat.get("label", "")):
                 cat_ids.append(cat.get("value"))
 
         if not cat_ids:
-            logger.info("Nenhuma categoria alvo encontrada para este jornal.")
-            # Fallback: buscar sem categoria se não achar saúde
-            cat_ids = [""]
+            logger.info("Nenhuma categoria permitida encontrada para este jornal.")
+            # Se não houver a categoria alvo, não adianta tentar as outras, poupa processamento
+            return pd.DataFrame(columns=COLUNAS)
 
         # 3. Buscar matérias por categoria
         materias_encontradas = []
@@ -127,9 +191,8 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
 
                 for mat in materias:
                     texto_bruto = mat.get("dsTexto", "")
-                    # Verifica a keyword no texto bruto antes de baixar o PDF
+                    
                     achou_kw = None
-                    # Hardcoded "joinville" check as per business rule
                     if "joinville" in texto_bruto.lower():
                         achou_kw = "Joinville"
                     
@@ -142,6 +205,20 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
 
         if not materias_encontradas:
             return pd.DataFrame(columns=COLUNAS)
+
+        # Regra 4: Priorização institucional
+        # 1 = SECRETARIAS DE ESTADO / SAÚDE + PORTARIA
+        # 2 = PREFEITURAS MUNICIPAIS / JOINVILLE + PORTARIA
+        # 3 = Demais
+        def sort_key(item):
+            norm_cat = normalize_text(item["hierarquia"])
+            if "saude" in norm_cat:
+                return 1
+            elif "joinville" in norm_cat:
+                return 2
+            return 3
+
+        materias_encontradas.sort(key=sort_key)
 
         df = pd.DataFrame(materias_encontradas)
         for col in COLUNAS:
@@ -160,6 +237,17 @@ def _processar_materia(session: requests.Session, cd_jornal: str, mat: dict[str,
     titulo = mat.get("dsTitulo", "Ato Normativo").strip()
     categoria = mat.get("dsCategoria", "")
     assunto = mat.get("dsAssunto", "")
+    tipo_ato = _extrair_tipo(titulo)
+
+    # Validar Categoria
+    if not is_valid_category(categoria):
+        logger.info(f"[DOE-SC] Documento ignorado: categoria inválida ({categoria})")
+        return None
+
+    # Validar Portaria
+    if not is_portaria_document(titulo, assunto, tipo_ato):
+        logger.info(f"[DOE-SC] Documento ignorado: não é portaria (Título: {titulo[:30]}...)")
+        return None
 
     try:
         # Pega a URL do PDF oficial
@@ -181,10 +269,34 @@ def _processar_materia(session: requests.Session, cd_jornal: str, mat: dict[str,
         # Inteligência Semântica
         resumo = _extrair_resumo(texto_limpo)
         trecho = _extrair_trecho_relevante(texto_limpo, kw)
-        
-        # Extração de Metadados
         orgao = _extrair_orgao(texto_limpo, categoria)
-        tipo = _extrair_tipo(titulo)
+
+        # Regra 3: Calcular Score Joinville
+        score = 0
+        norm_cat = normalize_text(categoria)
+        if "joinville" in norm_cat:
+            score += 2
+            
+        norm_orgao = normalize_text(orgao)
+        if "joinville" in norm_orgao:
+            score += 2
+            
+        norm_trecho = normalize_text(trecho)
+        if "joinville" in norm_trecho:
+            score += 1
+            
+        norm_resumo = normalize_text(resumo)
+        if "joinville" in norm_resumo:
+            score += 1
+
+        if score < 2:
+            logger.info(f"[DOE-SC] Documento ignorado: score Joinville insuficiente ({score}) para {cd_materia}")
+            return None
+
+        logger.info(f"[DOE-SC] Documento aprovado (Score: {score}): {cd_materia}")
+
+        # Badge visual para UI
+        categoria_badge = "🏛️ Prefeitura Joinville" if "joinville" in norm_cat else "🏥 Saúde Estadual"
 
         return {
             "origem": "DOE-SC",
@@ -194,10 +306,12 @@ def _processar_materia(session: requests.Session, cd_jornal: str, mat: dict[str,
             "link_certificado": pdf_url,
             "descricao": trecho,
             "resumo": resumo,
-            "tipo": tipo,
+            "tipo": tipo_ato,
             "orgao": orgao,
             "pagina": "",
-            "palavra_encontrada": kw
+            "palavra_encontrada": kw,
+            "score": score,
+            "categoria_badge": categoria_badge
         }
 
     except Exception as e:
