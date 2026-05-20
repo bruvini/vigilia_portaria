@@ -131,63 +131,82 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
         unsafe_allow_html=True,
     )
 
-    for _, linha in df.iterrows():
-        titulo         = str(linha.get("titulo", ""))
-        descricao      = str(linha.get("descricao", ""))
-        hierarquia     = str(linha.get("hierarquia", ""))
-        link           = str(linha.get("link", ""))
-        origem         = str(linha.get("origem", "DOU"))
-        data_pub       = str(linha.get("data", ""))
+    nomes_fontes = {
+        "DOU": "Diário Oficial da União",
+        "DOE-SC": "Diário Oficial de Santa Catarina",
+        "DOE-JOI": "Diário Oficial de Joinville"
+    }
 
-        if not data_pub:
-            data_pub = date.today().strftime("%d/%m/%Y")
+    origens_presentes = df["origem"].unique()
+    ordem_preferencial = ["DOU", "DOE-SC", "DOE-JOI"]
+    origens_ordenadas = [o for o in ordem_preferencial if o in origens_presentes]
+    origens_ordenadas += [o for o in origens_presentes if o not in origens_ordenadas]
 
-        badge_origem = _badge_origem(origem)
+    for idx_grp, orig in enumerate(origens_ordenadas):
+        if idx_grp > 0:
+            st.divider()
 
-        with st.container(border=True):
-            # Layout de metadados
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.markdown(f"<div style='font-size: 0.8rem; color: #94a3b8; text-transform: uppercase;'>{hierarquia}</div>", unsafe_allow_html=True)
-            with col2:
-                st.markdown(
-                    f"<div style='text-align: right; font-size: 0.8rem; color: #94a3b8;'>"
-                    f"Publicação: {data_pub} {badge_origem}"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
+        nome_exibicao = nomes_fontes.get(orig, orig)
+        st.subheader(nome_exibicao)
 
-            # DOU vs DOE-SC
-            if origem == "DOU" or "União" in origem:
-                # O título é um link clicável
-                if link and not link.startswith("http"):
-                    url_completa = f"https://www.in.gov.br{link}"
-                else:
-                    url_completa = link
+        df_grupo = df[df["origem"] == orig]
+        for _, linha in df_grupo.iterrows():
+            titulo         = str(linha.get("titulo", ""))
+            descricao      = str(linha.get("descricao", ""))
+            hierarquia     = str(linha.get("hierarquia", ""))
+            link           = str(linha.get("link", ""))
+            origem         = str(linha.get("origem", "DOU"))
+            data_pub       = str(linha.get("data", ""))
 
-                titulo_html = _destacar_palavras(titulo, palavras_chave)
-                st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'><a href='{url_completa}' target='_blank' rel='noopener noreferrer'>{titulo_html}</a></h4>", unsafe_allow_html=True)
+            if not data_pub:
+                data_pub = date.today().strftime("%d/%m/%Y")
 
-                descricao_html = _destacar_palavras(descricao, palavras_chave)
-                st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
+            badge_origem = _badge_origem(origem)
 
-            else: # DOE-SC (ou outras)
-                # Verifica menção simples a "Joinville" no conteúdo completo
-                menciona_joinville = "joinville" in descricao.lower() or "joinville" in titulo.lower()
-                badge_joinville = ""
-                if menciona_joinville:
-                    badge_joinville = (
-                        '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
-                        'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
-                        'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
+            with st.container(border=True):
+                # Layout de metadados
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"<div style='font-size: 0.8rem; color: #94a3b8; text-transform: uppercase;'>{hierarquia}</div>", unsafe_allow_html=True)
+                with col2:
+                    st.markdown(
+                        f"<div style='text-align: right; font-size: 0.8rem; color: #94a3b8;'>"
+                        f"Publicação: {data_pub} {badge_origem}"
+                        f"</div>",
+                        unsafe_allow_html=True
                     )
 
-                titulo_html = _destacar_palavras(titulo, palavras_chave)
-                st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_joinville}</h4>", unsafe_allow_html=True)
+                # DOU vs DOE-SC
+                if origem == "DOU" or "União" in origem:
+                    # O título é um link clicável
+                    if link and not link.startswith("http"):
+                        url_completa = f"https://www.in.gov.br{link}"
+                    else:
+                        url_completa = link
 
-                descricao_html = _destacar_palavras(descricao, palavras_chave)
-                with st.expander("Clique para ver o texto completo da publicação"):
+                    titulo_html = _destacar_palavras(titulo, palavras_chave)
+                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'><a href='{url_completa}' target='_blank' rel='noopener noreferrer'>{titulo_html}</a></h4>", unsafe_allow_html=True)
+
+                    descricao_html = _destacar_palavras(descricao, palavras_chave)
                     st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
+
+                else: # DOE-SC (ou outras)
+                    # Verifica menção simples a "Joinville" no conteúdo completo
+                    menciona_joinville = "joinville" in descricao.lower() or "joinville" in titulo.lower()
+                    badge_joinville = ""
+                    if menciona_joinville:
+                        badge_joinville = (
+                            '<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
+                            'border-radius:4px; background-color:#e0f2fe; color:#0369a1; '
+                            'font-size:0.8rem; font-weight:600; vertical-align:middle;">📍 Município: Joinville</span>'
+                        )
+
+                    titulo_html = _destacar_palavras(titulo, palavras_chave)
+                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_joinville}</h4>", unsafe_allow_html=True)
+
+                    descricao_html = _destacar_palavras(descricao, palavras_chave)
+                    with st.expander("Clique para ver o texto completo da publicação"):
+                        st.markdown(f"<div style='font-size: 0.95rem; color: #334155; line-height: 1.6;'>{descricao_html}</div>", unsafe_allow_html=True)
 
 
 def _badge_origem(origem: str) -> str:
@@ -303,7 +322,8 @@ def render_home():
 
     if iniciar:
         if not filtros["fontes"]:
-            st.warning("Selecione ao menos uma fonte de pesquisa.")
+            st.warning("Selecione pelo menos um Diário Oficial para realizar a pesquisa.")
+            st.stop()
         else:
             df_consolidado = _executar_varredura(filtros)
             st.session_state["df_resultados"]  = df_consolidado

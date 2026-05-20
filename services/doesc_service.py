@@ -290,12 +290,16 @@ def _processar_ato(
             if padrao and not re.search(padrao, texto_completo.lower()):
                 return None
 
+        # Filtro estrito do DOE-SC: manter apenas se contiver a string exata "Município: Joinville" (com variações)
+        if not re.search(r"(?i)munic[íi]pio:\s*joinville", texto_completo):
+            return None
+
         return {
             "origem":    "DOE-SC",
             "hierarquia": f"DOE-SC › {categoria} › {assunto}",
             "titulo":    titulo,
             "link":      "",
-            "descricao": texto_completo[:1500],
+            "descricao": texto_completo,
         }
 
     except Exception:
