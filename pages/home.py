@@ -198,19 +198,7 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
 
                     # Título com destaque
                     titulo_html = _destacar_palavras(titulo, palavras_chave)
-                    
-                    categoria_badge = str(linha.get("categoria_badge", ""))
-                    if categoria_badge:
-                        cor_bg = "#dcfce7" if "Saúde" in categoria_badge else "#e0f2fe"
-                        cor_txt = "#15803d" if "Saúde" in categoria_badge else "#0369a1"
-                        badge_html = (
-                            f'<span style="display:inline-block; margin-left:8px; padding:2px 8px; '
-                            f'border-radius:4px; background-color:{cor_bg}; color:{cor_txt}; '
-                            f'font-size:0.8rem; font-weight:600; vertical-align:middle;">{categoria_badge}</span>'
-                        )
-                        st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html} {badge_html}</h4>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html}</h4>", unsafe_allow_html=True)
 
                     # Órgão
                     if orgao_ato:
