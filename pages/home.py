@@ -21,8 +21,16 @@ _ICON_SOURCE = """<svg xmlns="http://w3.org" width="14" height="14" viewBox="0 0
 def _executar_dou(data: date, palavras: list[str]) -> pd.DataFrame:
     return buscar_dou(data_publicacao=data, palavras_chave=palavras)
 
-def _executar_doesc(data: date, palavras: list[str]) -> pd.DataFrame:
-    return buscar_doesc_direto(data_publicacao=data, palavras_chave=palavras)
+def _executar_doesc(
+    data: date,
+    palavras: list[str],
+    operador: str = "OU",
+) -> pd.DataFrame:
+    return buscar_doesc_direto(
+        data_publicacao=data,
+        palavras_chave=palavras,
+        operador=operador,
+    )
 
 # ---------------------------------------------------------------------------
 # Seção: Painel de Filtros
@@ -50,7 +58,17 @@ def _render_filtros() -> dict:
             placeholder="Ex: convênio, repasse, município...",
             help="Separe os termos por vírgula. A busca é feita no título e no texto do ato.",
         )
-        
+
+    operador = st.radio(
+        "Modo da pesquisa",
+        options=["OU", "E"],
+        horizontal=True,
+        help=(
+            "OU: retorna publicações contendo qualquer um dos termos.\n"
+            "E: retorna apenas publicações que contenham TODOS os termos simultaneamente."
+        ),
+    )
+
     fontes = []
     if st.session_state.get("src_dou", True):
         fontes.append("Diário Oficial da União")
@@ -58,11 +76,12 @@ def _render_filtros() -> dict:
         fontes.append("Diário Oficial de Santa Catarina")
     if st.session_state.get("src_doej", False):
         fontes.append("Diário Oficial de Joinville")
-        
+
     return {
         "data": data_pub,
         "palavras": [p.strip() for p in palavras_raw.split(",") if p.strip()],
         "fontes": fontes,
+        "operador": operador,
     }
 
 # ---------------------------------------------------------------------------
@@ -193,7 +212,8 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
     fontes_sel = filtros["fontes"]
     data = filtros["data"]
     palavras = filtros["palavras"]
-    
+    operador = filtros.get("operador", "OU")
+
     data_str = data.strftime("%d/%m/%Y")
     for fonte in fontes_sel:
         if fonte == "Diário Oficial da União":
@@ -209,7 +229,7 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
         elif fonte == "Diário Oficial de Santa Catarina":
             with st.status(f"Varrendo {fonte}...", expanded=False):
                 try:
-                    df = _executar_doesc(data, palavras)
+                    df = _executar_doesc(data, palavras, operador)
                     df["origem"] = "DOE-SC"
                     df["data"] = data_str
                     frames.append(df)

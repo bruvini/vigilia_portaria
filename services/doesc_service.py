@@ -110,6 +110,7 @@ def _extrair_tipo(titulo: str, assunto: str) -> str:
 def buscar_doesc_direto(
     data_publicacao: date,
     palavras_chave: list[str],
+    operador: str = "OU",
 ) -> pd.DataFrame:
     """
     Busca publicações no DOE-SC via endpoint oficial em tempo real.
@@ -118,6 +119,10 @@ def buscar_doesc_direto(
         data_publicacao: data de publicação a consultar.
         palavras_chave: lista de termos para filtrar localmente.
 
+    Parâmetros:
+        operador: "OU" (any — retorna se qualquer termo bater) ou
+                  "E"  (all — retorna somente se TODOS os termos baterem).
+
     Retorna:
         pd.DataFrame com as colunas padronizadas do frontend Vigília.
         Retorna DataFrame vazio estruturado em caso de falha ou sem resultados.
@@ -125,7 +130,7 @@ def buscar_doesc_direto(
     Fluxo:
         1. Faz POST paginado para /apis/busca-materia (dtIni=dtFim=data)
         2. Coleta TODAS as publicações do dia em memória
-        3. Filtra localmente por palavras-chave (case/acento insensitive)
+        3. Filtra localmente com operador AND/OR (acento/case insensitive)
         4. Mapeia os campos do JSON para as colunas do DataFrame
     """
     dt_str = data_publicacao.strftime("%Y-%m-%d")
@@ -203,9 +208,11 @@ def buscar_doesc_direto(
         return pd.DataFrame(columns=COLUNAS)
 
     # ------------------------------------------------------------------
-    # Passo 2: Filtro local por palavras-chave (case/acento insensitive)
+    # Passo 2: Filtro local por palavras-chave (AND/OR, acento/case insensitive)
     # ------------------------------------------------------------------
     palavras_limpas = [_remover_acentos(p.strip()) for p in palavras_chave if p.strip()]
+    modo_and = operador.strip().upper() == "E"
+    logger.info(f"Modo de busca: {'E (AND)' if modo_and else 'OU (OR)'}")
 
     # ------------------------------------------------------------------
     # Passo 3: Mapear para DataFrame padronizado
@@ -222,21 +229,29 @@ def buscar_doesc_direto(
         assunto_norm = _remover_acentos(assunto)
         categoria_norm = _remover_acentos(categoria)
 
-        # Filtro por palavras-chave (se fornecidas)
+        # Texto consolidado para matching
+        texto_completo = " ".join([resumo_norm, assunto_norm, categoria_norm])
+
+        # Filtro por palavras-chave com suporte a AND/OR
         matched_keyword = ""
         if palavras_limpas:
-            matched = False
-            for orig_k, clean_k in zip(palavras_chave, palavras_limpas):
-                if (
-                    clean_k in resumo_norm
-                    or clean_k in assunto_norm
-                    or clean_k in categoria_norm
-                ):
-                    matched = True
-                    matched_keyword = orig_k
-                    break
+            resultados_match = [clean_k in texto_completo for clean_k in palavras_limpas]
+
+            if modo_and:
+                matched = all(resultados_match)
+            else:
+                matched = any(resultados_match)
+
             if not matched:
                 continue
+
+            # Listar todos os termos que deram match (útil especialmente no modo E)
+            encontrados = [
+                orig
+                for orig, limpa in zip(palavras_chave, palavras_limpas)
+                if limpa in texto_completo
+            ]
+            matched_keyword = ", ".join(encontrados)
 
         # Extrair título a partir do resumo (primeira linha não-vazia)
         linhas = [l.strip() for l in resumo_texto.split("\n") if l.strip()]
@@ -282,6 +297,11 @@ def buscar_doesc_direto(
 def buscar_doesc(
     data_publicacao: date,
     palavras_chave: list[str],
+    operador: str = "OU",
 ) -> pd.DataFrame:
     """Alias para buscar_doesc_direto — mantém compatibilidade com imports legados."""
-    return buscar_doesc_direto(data_publicacao=data_publicacao, palavras_chave=palavras_chave)
+    return buscar_doesc_direto(
+        data_publicacao=data_publicacao,
+        palavras_chave=palavras_chave,
+        operador=operador,
+    )
