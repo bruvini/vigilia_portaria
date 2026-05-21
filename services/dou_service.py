@@ -50,7 +50,6 @@ COLUNAS = ["origem", "hierarquia", "titulo", "link", "descricao"]
 def buscar_dou(
     data_publicacao: date,
     palavras_chave: list[str],
-    operador: str = "OU",
     secao: str = "do1",
     orgao: Optional[str] = "Ministério da Saúde",
     tipo_ato: Optional[str] = "Portaria",
@@ -128,9 +127,9 @@ def buscar_dou(
             })
 
         logger.info(f"Total após filtros primários (Órgão/Tipo): {len(resultados)}")
-
-        # Filtro final por Palavras-Chave (suporte AND/OR)
-        return _filtrar_por_palavras_chave(resultados, palavras_chave, operador)
+        
+        # Filtro final por Palavras-Chave
+        return _filtrar_por_palavras_chave(resultados, palavras_chave)
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro de rede ao acessar DOU: {e}")
@@ -157,39 +156,25 @@ def _limpar_html_bs4(texto_html: str) -> str:
         return texto_html
 
 
-def _filtrar_por_palavras_chave(
-    resultados: list[dict],
-    palavras_chave: list[str],
-    operador: str = "OU",
-) -> pd.DataFrame:
-    """
-    Filtra a lista de dicionários por palavras-chave com suporte a AND/OR.
-
-    - OU (padrão): retorna se qualquer termo for encontrado (any).
-    - E:            retorna somente se TODOS os termos forem encontrados (all).
-    Busca case-insensitive em título + descrição concatenados.
-    """
+def _filtrar_por_palavras_chave(resultados: list[dict], palavras_chave: list[str]) -> pd.DataFrame:
+    """Filtra a lista de dicionários usando um Dataframe e as keywords via Regex."""
     if not resultados:
         return pd.DataFrame(columns=COLUNAS)
 
     df = pd.DataFrame(resultados, columns=COLUNAS)
-
+    
     palavras_limpas = [p.strip().lower() for p in palavras_chave if p.strip()]
     if not palavras_limpas:
         return df
 
-    modo_and = operador.strip().upper() == "E"
-    logger.info(f"Modo de busca DOU: {'E (AND)' if modo_and else 'OU (OR)'}")
-
-    mascara: list[bool] = []
-    for _, row in df.iterrows():
-        texto_completo = f"{row['titulo']} {row['descricao']}".lower()
-        resultados_match = [p in texto_completo for p in palavras_limpas]
-        if modo_and:
-            mascara.append(all(resultados_match))
-        else:
-            mascara.append(any(resultados_match))
-
+    # Busca as keywords no Título ou Descrição (case-insensitive)
+    padrao = "|".join(re.escape(p) for p in palavras_limpas)
+    mascara = (
+        df["titulo"].str.lower().str.contains(padrao, na=False)
+        | df["descricao"].str.lower().str.contains(padrao, na=False)
+    )
+    
     df_filtrado = df[mascara].reset_index(drop=True)
     logger.info(f"Total após filtro por palavras-chave ({palavras_limpas}): {len(df_filtrado)}")
+    
     return df_filtrado
