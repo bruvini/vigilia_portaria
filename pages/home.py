@@ -12,6 +12,7 @@ from services.doesc_service import buscar_doesc_direto
 # Ícones SVG
 # -----------------------------------------------------------------------------
 
+<<<<<<< HEAD
 _ICON_FILTER = """
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
 viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -67,6 +68,8 @@ def _executar_dou(
     )
 
 
+=======
+>>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 def _executar_doesc(
     data: date,
     palavras: list[str],
@@ -77,6 +80,7 @@ def _executar_doesc(
         palavras_chave=palavras,
         operador=operador,
     )
+<<<<<<< HEAD
 
 
 # -----------------------------------------------------------------------------
@@ -128,6 +132,8 @@ def _render_intro():
 # -----------------------------------------------------------------------------
 # Painel de filtros
 # -----------------------------------------------------------------------------
+=======
+>>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 
 def _render_filtros() -> dict:
 
@@ -180,6 +186,25 @@ def _render_filtros() -> dict:
                 "E → retorna apenas publicações contendo TODOS os termos."
             ),
         )
+<<<<<<< HEAD
+=======
+    with col2:
+        palavras_raw = st.text_input(
+            "Palavras-chave",
+            placeholder="Ex: convênio, repasse, município...",
+            help="Separe os termos por vírgula. A busca é feita no título e no texto do ato.",
+        )
+
+    operador = st.radio(
+        "Modo da pesquisa",
+        options=["OU", "E"],
+        horizontal=True,
+        help=(
+            "OU: retorna publicações contendo qualquer um dos termos.\n"
+            "E: retorna apenas publicações que contenham TODOS os termos simultaneamente."
+        ),
+    )
+>>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 
     fontes = []
 
@@ -481,6 +506,7 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
             ):
 
                 try:
+<<<<<<< HEAD
 
                     df = _executar_doesc(
                         data,
@@ -488,6 +514,9 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
                         operador,
                     )
 
+=======
+                    df = _executar_doesc(data, palavras, operador)
+>>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
                     df["origem"] = "DOE-SC"
                     df["data"] = data_str
 
