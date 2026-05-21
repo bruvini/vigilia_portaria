@@ -1,14 +1,14 @@
 /* =========================================================
-   Tema Claro – Plataforma Vigília
+   VIGÍLIA — DESIGN SYSTEM 2026
+   Plataforma Institucional de Monitoramento Estratégico
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ---------------------------------------------------------
-   Remove elementos padrão do Streamlit
-   --------------------------------------------------------- */
+/* =========================================================
+   RESET STREAMLIT
+   ========================================================= */
 
-/* Cabeçalho do topo com nome do app e links de página */
 #MainMenu,
 header[data-testid="stHeader"],
 footer[data-testid="stFooter"],
@@ -16,368 +16,630 @@ footer[data-testid="stFooter"],
 [data-testid="stDecoration"],
 [data-testid="stStatusWidget"],
 div[data-testid="stSidebarNav"],
-.reportview-container .main footer,
 [data-testid="stSidebarNavItems"],
 [data-testid="stSidebarNavSeparator"] {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* Remove padding topo que vem do header */
 .appview-container .main .block-container {
     padding-top: 0 !important;
 }
 
-/* ---------------------------------------------------------
-   Base
-   --------------------------------------------------------- */
-html, body, .stApp {
-    background-color: #f8fafc;
+/* =========================================================
+   ROOT
+   ========================================================= */
+
+:root {
+
+    /* BRAND */
+    --brand-primary: #0ea5e9;
+    --brand-primary-dark: #0284c7;
+    --brand-primary-soft: #e0f2fe;
+
+    /* BACKGROUNDS */
+    --bg-main: #f4f7fb;
+    --bg-card: rgba(255, 255, 255, 0.82);
+    --bg-card-solid: #ffffff;
+    --bg-sidebar: #ffffff;
+
+    /* TEXT */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    /* BORDER */
+    --border-light: rgba(226, 232, 240, 0.9);
+
+    /* SHADOW */
+    --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+
+    /* RADIUS */
+    --radius-sm: 12px;
+    --radius-md: 18px;
+    --radius-lg: 24px;
+
+    /* TRANSITION */
+    --transition-fast: all 0.18s ease;
+    --transition-normal: all 0.28s ease;
+}
+
+/* =========================================================
+   BASE
+   ========================================================= */
+
+html,
+body,
+.stApp {
+    background:
+        radial-gradient(circle at top left, rgba(14, 165, 233, 0.06), transparent 30%),
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.05), transparent 25%),
+        #f4f7fb;
+
     font-family: 'Inter', sans-serif;
-    color: #334155;
+    color: var(--text-primary);
 }
 
 .block-container {
-    padding-top: 0rem !important;
+    max-width: 1320px;
+    padding-left: 3rem;
+    padding-right: 3rem;
     padding-bottom: 2rem;
-    padding-left: 3.5rem;
-    padding-right: 3.5rem;
-    max-width: 1200px;
 }
 
-/* ---------------------------------------------------------
-   Banner / Hero
-   --------------------------------------------------------- */
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* =========================================================
+   HERO
+   ========================================================= */
+
 .hero-wrapper {
-    display: flex;
-    justify-content: center;
-    margin-top: 0rem !important;
-    margin-bottom: 1.5rem;
+    position: relative;
+    margin-top: 0;
+    margin-bottom: 2rem;
+    animation: fadeUp 0.45s ease;
 }
 
 .hero-banner {
-    width: 100%;
-    max-width: 800px;
-    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
-    border: 1px solid #e2e8f0;
-    background-color: #ffffff;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.9),
+            rgba(255, 255, 255, 0.72));
+
+    backdrop-filter: blur(18px);
+
+    box-shadow:
+        0 10px 30px rgba(15, 23, 42, 0.08),
+        0 2px 12px rgba(14, 165, 233, 0.08);
+
+    transition: var(--transition-normal);
 }
 
-/* ---------------------------------------------------------
-   Tipografia de Página
-   --------------------------------------------------------- */
+.hero-banner:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 18px 42px rgba(15, 23, 42, 0.12),
+        0 4px 16px rgba(14, 165, 233, 0.12);
+}
+
+.hero-banner img {
+    border-radius: 28px;
+}
+
+/* =========================================================
+   PAGE INTRO
+   ========================================================= */
+
 .page-intro {
-    margin-bottom: 1rem;
+    margin-bottom: 1.8rem;
+    animation: fadeUp 0.55s ease;
 }
 
 .page-title {
-    font-size: 1.8rem !important;
-    font-weight: 700 !important;
-    color: #0f172a !important;
-    margin: 0 0 0.4rem 0 !important;
+    font-size: 2.6rem !important;
+    line-height: 1.1 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.04em !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.65rem !important;
 }
 
 .page-subtitle {
-    color: #475569;
-    font-size: 1rem;
-    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    max-width: 760px;
+    color: var(--text-secondary);
 }
 
-/* ---------------------------------------------------------
-   Cabeçalho de Seção
-   --------------------------------------------------------- */
+/* =========================================================
+   SECTION HEADERS
+   ========================================================= */
+
 .section-header {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 1rem;
+    gap: 0.75rem;
+
+    margin-top: 0.5rem;
+    margin-bottom: 1.2rem;
 }
 
 .section-icon {
     display: flex;
     align-items: center;
-    color: #0ea5e9;
+    justify-content: center;
+
+    width: 42px;
+    height: 42px;
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(14, 165, 233, 0.14),
+            rgba(2, 132, 199, 0.08));
+
+    color: var(--brand-primary);
 }
 
 .section-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #0f172a;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
 }
 
-/* ---------------------------------------------------------
-   Contagem de resultados
-   --------------------------------------------------------- */
+/* =========================================================
+   INPUTS
+   ========================================================= */
+
+.stTextInput input,
+.stDateInput input {
+    border-radius: 14px !important;
+    border: 1px solid #dbe4ee !important;
+    background: rgba(255, 255, 255, 0.82) !important;
+
+    min-height: 48px !important;
+
+    transition: var(--transition-fast);
+}
+
+.stTextInput input:focus,
+.stDateInput input:focus {
+    border-color: var(--brand-primary) !important;
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12) !important;
+}
+
+.stRadio>div {
+    gap: 0.5rem;
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+button[kind="primary"] {
+    border: none !important;
+    border-radius: 16px !important;
+
+    background:
+        linear-gradient(135deg,
+            var(--brand-primary),
+            var(--brand-primary-dark)) !important;
+
+    color: white !important;
+
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+
+    min-height: 50px;
+
+    box-shadow:
+        0 10px 22px rgba(14, 165, 233, 0.24);
+
+    transition: var(--transition-fast) !important;
+}
+
+button[kind="primary"]:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 16px 28px rgba(14, 165, 233, 0.32) !important;
+}
+
+button[kind="secondary"] {
+    border-radius: 14px !important;
+}
+
+/* =========================================================
+   RESULTADOS
+   ========================================================= */
+
 .result-count {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
     margin-bottom: 1rem;
-    letter-spacing: 0.01em;
-}
-
-/* ---------------------------------------------------------
-   Cards de Resultado
-   --------------------------------------------------------- */
-.result-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.result-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border-color: #bae6fd;
-}
-
-.result-breadcrumb {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    margin-bottom: 0.4rem;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
 }
 
-.result-title {
-    font-size: 0.97rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    line-height: 1.4;
-}
+/* =========================================================
+   ALERTAS
+   ========================================================= */
 
-.result-title a {
-    color: #0f172a;
-    text-decoration: none;
-}
-
-.result-title a:hover {
-    color: #0ea5e9;
-    text-decoration: underline;
-}
-
-.result-description {
-    font-size: 0.88rem;
-    color: #475569;
-    line-height: 1.6;
-}
-
-/* Destaque das palavras-chave */
-mark.keyword-highlight {
-    background-color: #fef08a;
-    color: #713f12;
-    border-radius: 3px;
-    padding: 0 2px;
-    font-weight: 600;
-}
-
-/* ---------------------------------------------------------
-   Alerta / Estado vazio
-   --------------------------------------------------------- */
 .alert-box {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
+    gap: 0.9rem;
+
     padding: 1rem 1.25rem;
-    color: #475569;
-    font-size: 0.95rem;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.85),
+            rgba(255, 255, 255, 0.72));
+
+    border: 1px solid rgba(226, 232, 240, 0.8);
+
+    box-shadow: var(--shadow-sm);
+
+    color: var(--text-secondary);
+    font-size: 0.94rem;
 }
 
-/* ---------------------------------------------------------
-   Sidebar premium
-   --------------------------------------------------------- */
+/* =========================================================
+   HIGHLIGHT DE KEYWORD
+   ========================================================= */
+
+mark.keyword-highlight {
+    background: linear-gradient(135deg,
+            #fde68a,
+            #facc15);
+
+    color: #713f12;
+
+    padding: 0 5px;
+    border-radius: 6px;
+
+    font-weight: 700;
+}
+
+/* =========================================================
+   STREAMLIT CONTAINER CARD
+   ========================================================= */
+
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 22px !important;
+    border: 1px solid rgba(226, 232, 240, 0.85) !important;
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.9),
+            rgba(255, 255, 255, 0.76)) !important;
+
+    backdrop-filter: blur(14px);
+
+    box-shadow:
+        0 6px 24px rgba(15, 23, 42, 0.05);
+
+    transition: var(--transition-normal);
+}
+
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 14px 30px rgba(15, 23, 42, 0.09);
+
+    border-color: rgba(14, 165, 233, 0.22) !important;
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
 section[data-testid="stSidebar"] {
-    background-color: #ffffff;
-    border-right: 1px solid #e2e8f0;
-    box-shadow: 2px 0 12px rgba(15, 23, 42, 0.04);
+    background:
+        linear-gradient(180deg,
+            rgba(255, 255, 255, 0.96),
+            rgba(248, 250, 252, 0.96));
+
+    border-right: 1px solid rgba(226, 232, 240, 0.7);
+
+    box-shadow:
+        4px 0 24px rgba(15, 23, 42, 0.04);
+
+    backdrop-filter: blur(18px);
 }
 
-section[data-testid="stSidebar"] > div {
+section[data-testid="stSidebar"]>div {
     padding-top: 0 !important;
 }
 
-/* Topo da sidebar – cabeçalho customizado */
+/* =========================================================
+   SIDEBAR HEADER
+   ========================================================= */
+
 .sidebar-header {
-    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
-    padding: 1.5rem 1.25rem 1.25rem;
-    margin: -1rem -1rem 1rem -1rem;
-    border-radius: 0 0 16px 16px;
+    position: relative;
+
+    margin: -1rem -1rem 1.2rem -1rem;
+    padding: 2rem 1.2rem 1.4rem;
+
+    border-radius: 0 0 28px 28px;
+
+    overflow: hidden;
+
+    background:
+        linear-gradient(145deg,
+            #0f172a 0%,
+            #132b48 40%,
+            #0ea5e9 160%);
+
+    box-shadow:
+        0 10px 24px rgba(15, 23, 42, 0.22);
+
     text-align: center;
+}
+
+.sidebar-header::before {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        radial-gradient(circle at top right,
+            rgba(255, 255, 255, 0.16),
+            transparent 32%);
 }
 
 .sidebar-logo {
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
+
     object-fit: contain;
-    margin: 0 auto 0.75rem;
-    display: block;
-    filter: drop-shadow(0 2px 8px rgba(14, 165, 233, 0.3));
+
+    margin: 0 auto 1rem;
+
+    filter:
+        drop-shadow(0 8px 18px rgba(14, 165, 233, 0.45));
+
+    animation: floatLogo 4s ease-in-out infinite;
 }
 
 .sidebar-app-name {
-    color: #ffffff;
-    font-size: 1.35rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    margin: 0 0 0.2rem 0;
+    color: white;
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.3rem;
 }
 
 .sidebar-subtitle {
-    color: #94a3b8;
+    color: rgba(255, 255, 255, 0.72);
+
     font-size: 0.72rem;
-    letter-spacing: 0.06em;
+    font-weight: 600;
+
     text-transform: uppercase;
-    margin: 0;
-    font-weight: 500;
+    letter-spacing: 0.18em;
 }
 
-/* Rótulo de seção da sidebar */
+/* =========================================================
+   SIDEBAR LABELS
+   ========================================================= */
+
 .sidebar-section-label {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+    margin-top: 1rem;
+    margin-bottom: 0.7rem;
+
+    color: var(--text-muted);
+
+    font-size: 0.7rem;
+    font-weight: 800;
+
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: #94a3b8;
-    margin: 0.5rem 0 0.6rem 0;
 }
 
-/* Cards de fonte/diário na sidebar */
-.sidebar-source-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 0.75rem 1rem 0.6rem;
-    margin-bottom: 0.5rem;
-    transition: border-color 0.2s ease, background 0.2s ease;
-    cursor: pointer;
-}
+/* =========================================================
+   SIDEBAR TEXT
+   ========================================================= */
 
-.sidebar-source-card:hover {
-    border-color: #7dd3fc;
-    background: #f0f9ff;
-}
-
-.sidebar-source-card.active {
-    border-color: #0ea5e9;
-    background: #f0f9ff;
-}
-
-/* Regra nos cards */
 .sidebar-rule-text {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    line-height: 1.5;
-    margin-top: 0.3rem;
-}
-
-/* Status badge (Em desenvolvimento) */
-.sidebar-badge-dev {
-    display: inline-block;
-    font-size: 0.62rem;
-    font-weight: 600;
-    color: #d97706;
-    background: #fef3c7;
-    border-radius: 4px;
-    padding: 1px 6px;
-    letter-spacing: 0.03em;
-    margin-left: 4px;
-    vertical-align: middle;
-}
-
-/* Rodapé da sidebar */
-.sidebar-footer-text {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    text-align: center;
-    line-height: 1.5;
-}
-
-.sidebar-footer-text strong {
+    font-size: 0.73rem;
+    line-height: 1.6;
     color: #64748b;
+    margin-top: 0.4rem;
 }
 
-/* Esconde ícone de colapso do menu de páginas */
-section[data-testid="stSidebar"] .stMarkdown {
-    color: #334155;
+/* =========================================================
+   BADGE
+   ========================================================= */
+
+.sidebar-badge-dev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-left: 0.45rem;
+    padding: 2px 8px;
+
+    border-radius: 999px;
+
+    background: #fef3c7;
+    color: #b45309;
+
+    font-size: 0.6rem;
+    font-weight: 800;
+
+    letter-spacing: 0.08em;
 }
 
-section[data-testid="stSidebar"] h1,
-section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] h3 {
-    color: #0f172a !important;
-    font-weight: 600;
+/* =========================================================
+   CHECKBOX
+   ========================================================= */
+
+.stCheckbox label {
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
 }
 
-/* Ajuste de checkbox na sidebar */
-section[data-testid="stSidebar"] .stCheckbox label {
-    font-size: 0.875rem !important;
-    font-weight: 600 !important;
-    color: #0f172a !important;
-}
+/* =========================================================
+   FOOTER
+   ========================================================= */
 
-/* ---------------------------------------------------------
-   Footer customizado
-   --------------------------------------------------------- */
 .vigilia-footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+
     text-align: center;
-    padding: 2rem 0 0.5rem;
 }
 
 .vigilia-footer-divider {
     border: none;
-    border-top: 1px solid #e2e8f0;
-    margin-bottom: 1.25rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.85);
+
+    margin-bottom: 1.5rem;
 }
 
 .vigilia-footer-brand {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #475569;
+    font-size: 0.88rem;
+    font-weight: 700;
+
     letter-spacing: 0.04em;
-    margin-bottom: 0.25rem;
+
+    color: var(--text-secondary);
+
+    margin-bottom: 0.35rem;
 }
 
 .vigilia-footer-sub {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    margin-bottom: 0.15rem;
+    color: var(--text-muted);
+
+    font-size: 0.76rem;
+    line-height: 1.7;
 }
 
-/* ---------------------------------------------------------
-   Tipografia Global
-   --------------------------------------------------------- */
-h1, h2, h3, h4, h5, h6 {
+/* =========================================================
+   TYPOGRAPHY
+   ========================================================= */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--text-primary) !important;
     font-family: 'Inter', sans-serif !important;
-    color: #0f172a !important;
 }
 
 p {
-    color: #334155;
+    color: var(--text-secondary);
 }
 
-hr {
-    border-color: #e2e8f0 !important;
+a {
+    color: var(--brand-primary);
+    text-decoration: none;
 }
 
-/* Botão primário do Streamlit */
-button[kind="primary"] {
-    background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.02em !important;
-    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+a:hover {
+    color: var(--brand-primary-dark);
 }
 
-button[kind="primary"]:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4) !important;
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes floatLogo {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-4px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+/* =========================================================
+   RESPONSIVIDADE
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+    .block-container {
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+}
+
+@media (max-width: 768px) {
+
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .page-title {
+        font-size: 2rem !important;
+    }
+
+    .hero-banner {
+        border-radius: 20px;
+    }
+
+    .sidebar-header {
+        border-radius: 0 0 22px 22px;
+    }
+
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-radius: 18px !important;
+    }
 }
