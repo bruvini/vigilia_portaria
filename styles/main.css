@@ -642,6 +642,7 @@ a:hover {
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 18px !important;
     }
+<<<<<<< HEAD
 }
 
 /* =========================================================
@@ -992,4 +993,6 @@ a:hover {
     font-weight: 700;
 
     letter-spacing: 0.06em;
+=======
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
 }
