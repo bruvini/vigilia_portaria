@@ -196,9 +196,12 @@ def _render_resultados(df: pd.DataFrame, palavras_chave: list[str]) -> None:
                     resumo       = str(linha.get("resumo", ""))
                     palavra_enc  = str(linha.get("palavra_encontrada", ""))
 
-                    # Título com destaque
+                    # Título com destaque (com link se disponível)
                     titulo_html = _destacar_palavras(titulo, palavras_chave)
-                    st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html}</h4>", unsafe_allow_html=True)
+                    if link:
+                        st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'><a href='{link}' target='_blank' rel='noopener noreferrer'>{titulo_html}</a></h4>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<h4 style='margin-top: 10px; margin-bottom: 8px;'>{titulo_html}</h4>", unsafe_allow_html=True)
 
                     # Órgão
                     if orgao_ato:

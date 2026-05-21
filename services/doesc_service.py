@@ -1,9 +1,9 @@
 """
 Serviço de busca do Diário Oficial de Santa Catarina (DOE-SC).
 
-Esta versão substitui a raspagem de DOM (Playwright) e a busca na API antiga
-pelo consumo direto da API REST pública baseada no padrão CKAN (dados.sc.gov.br).
-Utiliza cache local de arquivos CSV anuais para garantir alta performance e estabilidade.
+Esta versão consome os dados diretamente da API REST do CKAN, salvando cache
+local de arquivos CSV anuais, e realizando filtragem dinâmica e flexível de
+palavras-chave (sem acentos e case-insensitive) e links oficiais clicáveis.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 
@@ -46,6 +47,17 @@ COLUNAS = [
 ]
 
 CACHE_DIR = Path("data")
+
+# ---------------------------------------------------------------------------
+# Helpers de Texto
+# ---------------------------------------------------------------------------
+
+def remover_acentos(texto: str) -> str:
+    """Remove acentos e converte para minúsculas de forma robusta."""
+    if not isinstance(texto, str):
+        return ""
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("utf-8").lower()
+
 
 # ---------------------------------------------------------------------------
 # Função de Busca Principal
@@ -96,7 +108,6 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
         logger.info(f"Recurso selecionado: {resource_name} | ID: {resource.get('id')}")
 
         # Passo C: Baixar e carregar o arquivo bruto
-        # Vamos usar um sistema de cache local para evitar downloads repetidos de arquivos grandes (~7MB)
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache_path = CACHE_DIR / resource_name
         
@@ -126,6 +137,10 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
         
         # 1. Filtro de data
         dt_jornal_str = data_publicacao.strftime("%d/%m/%Y")
+        if "DATA_PUBLICACAO" not in df.columns:
+            logger.warning("Coluna DATA_PUBLICACAO não encontrada no CSV.")
+            return pd.DataFrame(columns=COLUNAS)
+
         df["DATA_PUBLICACAO"] = df["DATA_PUBLICACAO"].astype(str).str.strip()
         df = df[df["DATA_PUBLICACAO"] == dt_jornal_str]
         
@@ -133,67 +148,70 @@ def buscar_doesc(data_publicacao: date, palavras_chave: list[str]) -> pd.DataFra
             logger.info(f"Nenhuma publicação encontrada para a data {dt_jornal_str}")
             return pd.DataFrame(columns=COLUNAS)
 
-        # 2. Filtro Saúde (Categoria ou Título contém saúde/saude)
-        mask_saude = (
-            df["CATEGORIA"].astype(str).str.contains(r"(?i)sa[uú]de", na=False) |
-            df["TITULO_PUBLICACAO"].astype(str).str.contains(r"(?i)secretaria.*sa[uú]de", na=False)
-        )
-        df = df[mask_saude]
+        # 2. Filtro de Palavras-Chave Dinâmico (Acento e Case Insensitive)
+        palabras_limpas = [remover_acentos(p.strip()) for p in palavras_chave if p.strip()]
         
-        if df.empty:
-            logger.info("Nenhuma publicação de Saúde encontrada.")
-            return pd.DataFrame(columns=COLUNAS)
+        if palabras_limpas:
+            # Normalização unicode conforme dica do Pandas
+            titulo_norm = df["TITULO_PUBLICACAO"].astype(str).str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
+            assunto_norm = df["ASSUNTO"].astype(str).str.normalize('NFKD').str.encode('ascii', errors='ignore').str.decode('utf-8').str.lower()
+            
+            # Concatena as keywords com OR regex
+            padrao = "|".join(re.escape(p) for p in palabras_limpas)
+            mask = titulo_norm.str.contains(padrao, na=False) | assunto_norm.str.contains(padrao, na=False)
+            df = df[mask]
+            
+            if df.empty:
+                logger.info("Nenhuma publicação correspondente às palavras-chave encontradas.")
+                return pd.DataFrame(columns=COLUNAS)
 
-        # 3. Filtro Portaria (Assunto ou Título contém portaria)
-        mask_portaria = (
-            df["ASSUNTO"].astype(str).str.contains(r"(?i)portaria", na=False) |
-            df["TITULO_PUBLICACAO"].astype(str).str.contains(r"(?i)portaria", na=False)
-        )
-        df = df[mask_portaria]
-        
-        if df.empty:
-            logger.info("Nenhuma Portaria encontrada na área da Saúde.")
-            return pd.DataFrame(columns=COLUNAS)
-
-        # 4. Filtro Rigoroso (Joinville)
-        mask_joi = df["TITULO_PUBLICACAO"].astype(str).str.contains(r"(?i)munic[ií]pio:\s*joinville", na=False)
-        df = df[mask_joi]
-
-        if df.empty:
-            logger.info("Nenhuma portaria de Saúde com menção a Joinville encontrada.")
-            return pd.DataFrame(columns=COLUNAS)
-
-        # 5. Processamento dos dados e Mapeamento de Colunas
+        # 3. Processamento dos dados e Mapeamento de Colunas
         resultados = []
         for _, row in df.iterrows():
             texto_bruto = str(row["TITULO_PUBLICACAO"]).strip()
             
-            # Separar título e corpo/descrição pelo caractere de duplo espaço
+            # Separar título e corpo pelo caractere de duplo espaço
             partes = texto_bruto.split("  ", 1)
             titulo_extraido = partes[0].strip() if partes else "Ato Normativo"
             corpo = partes[1].strip() if len(partes) > 1 else texto_bruto
             
-            categoria = str(row["CATEGORIA"]).strip()
-            assunto = str(row["ASSUNTO"]).strip()
+            categoria = str(row.get("CATEGORIA", "")).strip()
+            assunto = str(row.get("ASSUNTO", "")).strip()
             
+            # Extrair resumo do corpo
             resumo = _extrair_resumo(corpo)
-            trecho = _extrair_trecho_relevante(corpo, "Joinville")
-            
             orgao = _extrair_orgao(corpo, categoria)
             tipo = _extrair_tipo(titulo_extraido)
+            
+            # Montar a URL oficial concatenando EDICAO e PUBLICACAO
+            edicao = str(row.get("EDICAO", "")).strip()
+            publicacao = str(row.get("PUBLICACAO", "")).strip()
+            link_url = ""
+            if edicao and publicacao:
+                link_url = f"https://portal.doe.sea.sc.gov.br/v2.43.01/#/portal/edicao/{edicao}/materia/{publicacao}"
+            
+            # Identificar dinamicamente qual palavra-chave deu match
+            palavra_encontrada = ""
+            if palabras_limpas:
+                texto_bruto_norm = remover_acentos(texto_bruto)
+                assunto_norm_str = remover_acentos(assunto)
+                for original_p, limpa_p in zip(palavras_chave, palabras_limpas):
+                    if limpa_p in texto_bruto_norm or limpa_p in assunto_norm_str:
+                        palavra_encontrada = original_p
+                        break
             
             resultados.append({
                 "origem": "DOE-SC",
                 "hierarquia": f"DOE-SC › {categoria} › {assunto}",
                 "titulo": titulo_extraido,
-                "link": "Link via API",
-                "link_certificado": "https://dados.sc.gov.br/dataset/diario-oficial-sc-publicacoes",
-                "descricao": trecho if trecho else corpo,
+                "link": link_url,
+                "link_certificado": link_url,
+                "descricao": texto_bruto,
                 "resumo": resumo,
                 "tipo": tipo,
                 "orgao": orgao,
                 "pagina": "",
-                "palavra_encontrada": "Joinville"
+                "palavra_encontrada": palavra_encontrada
             })
 
         df_final = pd.DataFrame(resultados, columns=COLUNAS)
@@ -238,35 +256,6 @@ def _extrair_resumo(texto: str) -> str:
         return bloco
         
     return "Resumo não disponível."
-
-
-def _extrair_trecho_relevante(texto: str, kw: str) -> str:
-    """Isola rigorosamente a sentença que contém a keyword, mais contexto mínimo."""
-    if not texto:
-        return ""
-
-    frases = re.split(r"(?<=[.!?])\s+|\n", texto)
-    frases = [f.strip() for f in frases if f.strip() and len(f.strip()) > 5]
-
-    kw_lower = kw.lower()
-    indices = [i for i, f in enumerate(frases) if kw_lower in f.lower()]
-
-    if not indices:
-        return ""
-
-    idx = indices[0]
-    inicio = max(0, idx - 1)
-    fim = min(len(frases), idx + 2)
-    
-    trecho = " ".join(frases[inicio:fim]).replace("\n", " ")
-    
-    if len(trecho) > 400:
-        trecho = trecho[:397] + "..."
-        
-    if inicio > 0:
-        trecho = "..." + trecho
-        
-    return trecho
 
 
 def _extrair_tipo(titulo: str) -> str:
