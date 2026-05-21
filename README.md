@@ -13,16 +13,7 @@ em diários oficiais — com varredura automática, filtragem por palavras-chave
 pip install -r requirements.txt
 ```
 
-### 2. Instale os navegadores do Playwright
-
-O Playwright utiliza um navegador Chromium headless para automação dos portais dinâmicos.
-Execute obrigatoriamente **uma vez** após a instalação:
-
-```bash
-python -m playwright install chromium
-```
-
-### 3. Execute a aplicação
+### 2. Execute a aplicação
 
 ```bash
 streamlit run streamlit_app.py
@@ -36,8 +27,8 @@ streamlit run streamlit_app.py
 |--------------------|----------------------------------------------------------|
 | **Streamlit**      | Interface de usuário web interativa                      |
 | **Pandas**         | Estruturação e filtragem dos dados extraídos             |
-| **Playwright**     | Automação de navegador para portais dinâmicos (DOU e DOE-SC) |
-| **BeautifulSoup4** | Suporte auxiliar a parsing HTML estático                 |
+| **Requests**       | Integração HTTP com APIs públicas (DOU e CKAN DOE-SC)    |
+| **BeautifulSoup4** | Suporte auxiliar a parsing HTML estático (DOU)           |
 
 ---
 
@@ -58,8 +49,8 @@ vigilia_portaria/
 ├── pages/
 │   └── home.py                 # Página principal com filtros, orquestração e resultados
 ├── services/
-│   ├── dou_service.py          # Motor de raspagem do DOU (Playwright)
-│   └── doesc_service.py        # Motor de raspagem do DOE-SC (Playwright + Angular)
+│   ├── dou_service.py          # Motor de busca do DOU via Liferay Script
+│   └── doesc_service.py        # Motor de busca do DOE-SC via API REST CKAN pública
 ├── styles/
 │   └── main.css                # Folha de estilos principal (Light Theme)
 └── utils/
@@ -100,63 +91,32 @@ services/dou_service.py
 
 ## Como Funciona a Busca — DOE-SC
 
-### Complexidade Técnica
+### Integração via API REST CKAN
 
-O portal do Diário Oficial de Santa Catarina é uma aplicação **Angular + PrimeNG** altamente dinâmica.
-Não existe uma API pública ou endpoint REST simples — toda interação ocorre via manipulação
-de componentes Angular renderizados no cliente.
+O portal de dados abertos de Santa Catarina disponibiliza a base de publicações oficiais estruturada em formato CKAN. Abandonamos o uso do Playwright e da raspagem do portal Angular do DOE-SC para consumir diretamente essa API, garantindo performance e estabilidade.
 
-### Fluxo de Automação (Playwright Headless)
+### Fluxo de Execução (API CKAN + Pandas)
 
 ```
 services/doesc_service.py
-  ├── URL: https://portal.doe.sea.sc.gov.br/v2.43.01/#/portal
-  ├── Aguarda Angular bootstrap (networkidle + buffer)
-  │
-  ├── [ETAPA 1] Navegar até Buscar Edições
-  │     └── Clica em <a:has-text('Buscar Edições')>
-  │
-  ├── [ETAPA 2] Aplicar Filtro de Data
-  │     ├── Abre modal: button:has(.pi-filter)
-  │     ├── Preenche Data Início → p-dialog p-calendar:first-of-type input
-  │     ├── Preenche Data Fim   → p-dialog p-calendar:last-of-type input
-  │     └── Clica em Aplicar   → .p-dialog-footer button:last-of-type
-  │
-  ├── [ETAPA 3] Listar Edições (Ordinária + Extra)
-  │     └── Cards em .p-dataview-content .col-12
-  │
-  └── [ETAPA 4] Para cada edição:
-        ├── Clica em "Abrir"   → button:has-text('Abrir')
-        ├── Seleciona formato  → button.btn-extrato (Extrato de Publicação Certificada)
-        │
-        └── Para cada categoria-alvo ("Saúde", "Joinville"):
-              ├── Seleciona no p-dropdown (.p-dropdown-label)
-              ├── Lista assuntos começando com "PORTARIA"
-              ├── Para cada assunto:
-              │     ├── Seleciona o assunto
-              │     ├── Extrai atos da lista de <section>
-              │     ├── Abre detalhe via "Saiba mais" (se disponível)
-              │     ├── Extrai texto via p.white-space-pre-wrap (ou fallback)
-              │     ├── Filtra pelo padrão de palavras-chave (regex)
-              │     └── Retorna ao clique "Voltar"
-              └── Limpa seleção de categoria ao finalizar
+  ├── 1. GET: https://dados.sc.gov.br/api/3/action/package_show?id=diario-oficial-sc-publicacoes
+  ├── 2. Identifica recurso CSV correspondente ao ano da data_publicacao
+  │      └── Fallback: mais recente se o ano atual não possuir recurso cadastrado
+  ├── 3. Baixa e cacheia localmente o arquivo CSV em data/ se:
+  │      └── O arquivo local não existir
+  │      └── O last_modified retornado na API for mais recente que o arquivo local
+  ├── 4. Lê o CSV usando Pandas com encoding utf-8-sig e sep=;
+  └── 5. Aplica filtros em memória (Pandas):
+         ├── DATA_PUBLICACAO == data_publicacao (DD/MM/YYYY)
+         ├── CATEGORIA ou TITULO_PUBLICACAO contém "saúde" (case-insensitive)
+         ├── ASSUNTO ou TITULO_PUBLICACAO contém "PORTARIA" (case-insensitive)
+         └── TITULO_PUBLICACAO contém regex r'(?i)munic[ií]pio:\s*joinville'
 ```
 
-### Seletores Validados (Angular/PrimeNG)
+### Otimizações e Estrutura dos Dados
 
-| Elemento                  | Seletor Playwright                                      |
-|---------------------------|---------------------------------------------------------|
-| Buscar Edições            | `a:has-text('Buscar Edições')`                          |
-| Botão de Filtros          | `button:has(.pi-filter)`                                |
-| Data Início (modal)       | `p-dialog p-calendar:first-of-type input`               |
-| Data Fim (modal)          | `p-dialog p-calendar:last-of-type input`                |
-| Botão Aplicar (modal)     | `.p-dialog-footer button:last-of-type`                  |
-| Card de Edição (Abrir)    | `button:has-text('Abrir')`                              |
-| Formato Extrato           | `button.btn-extrato`                                    |
-| Dropdown Categoria        | `.p-dropdown-label` com texto do placeholder            |
-| Opções do Dropdown        | `.p-dropdown-item`                                      |
-| Texto do Detalhe          | `p.white-space-pre-wrap`, `p.text-justify`              |
-| Voltar                    | `button:has-text('Voltar')`                             |
+- **Cache Inteligente:** Os arquivos anuais possuem ~7MB. O download só é realizado sob demanda caso ocorram atualizações pelo governo de SC, reduzindo a latência da busca para milissegundos.
+- **Parsing de Título e Corpo:** A coluna `TITULO_PUBLICACAO` contém o texto oficial com limite de 199 caracteres. Os metadados de título curto e descrição (corpo) são extraídos com base no separador de duplo espaço (`"  "`), fornecendo uma exibição limpa nos cards do Streamlit.
 
 ---
 
