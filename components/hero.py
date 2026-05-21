@@ -2,12 +2,38 @@ import streamlit as st
 from pathlib import Path
 
 
+<<<<<<< HEAD
+import streamlit as st
+from pathlib import Path
+import base64
+
+
+def _img_to_base64(path: Path) -> str:
+    data = path.read_bytes()
+    return base64.b64encode(data).decode()
+
+
+=======
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
 def render_hero():
+
     banner_path = Path("assets/banner_vigilia.png")
 
     if not banner_path.exists():
         return
 
+<<<<<<< HEAD
+    banner_base64 = _img_to_base64(banner_path)
+
+    st.markdown(f"""
+    <style>
+
+    .vigilia-hero-wrapper {{
+        position: relative;
+        margin-bottom: 2.8rem;
+        border-radius: 34px;
+        overflow: hidden;
+=======
     st.markdown("""
     <style>
 
@@ -20,13 +46,17 @@ def render_hero():
 
         overflow: hidden;
 
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
         background:
             linear-gradient(
                 145deg,
                 rgba(15, 23, 42, 0.98),
                 rgba(30, 41, 59, 0.96)
             );
+<<<<<<< HEAD
+=======
 
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
         border:
             1px solid rgba(56, 189, 248, 0.14);
 
@@ -34,6 +64,26 @@ def render_hero():
             0 25px 60px rgba(15, 23, 42, 0.32);
 
         isolation: isolate;
+<<<<<<< HEAD
+    }}
+
+    .vigilia-hero-banner {{
+        position: relative;
+        overflow: hidden;
+        border-radius: 34px;
+    }}
+
+    .vigilia-hero-banner img {{
+        width: 100%;
+        display: block;
+        border-radius: 34px;
+    }}
+
+    .vigilia-hero-overlay {{
+        position: absolute;
+        inset: 0;
+
+=======
     }
 
     .vigilia-hero-wrapper::before {
@@ -118,13 +168,18 @@ def render_hero():
 
         z-index: 3;
 
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
 
+<<<<<<< HEAD
+        padding: 2.2rem 2.4rem;
+=======
         padding:
             2.2rem
             2.4rem;
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
 
         background:
             linear-gradient(
@@ -133,6 +188,13 @@ def render_hero():
                 rgba(2, 6, 23, 0.15),
                 transparent
             );
+<<<<<<< HEAD
+    }}
+
+    .vigilia-hero-badge {{
+        width: fit-content;
+
+=======
 
         pointer-events: none;
     }
@@ -146,6 +208,7 @@ def render_hero():
 
         margin-bottom: 1rem;
 
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
         padding:
             0.45rem
             0.9rem;
@@ -158,13 +221,42 @@ def render_hero():
         border:
             1px solid rgba(56, 189, 248, 0.18);
 
+<<<<<<< HEAD
+=======
         backdrop-filter: blur(12px);
 
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
         color: #7dd3fc;
 
         font-size: 0.76rem;
         font-weight: 700;
 
+<<<<<<< HEAD
+        margin-bottom: 1rem;
+    }}
+
+    .vigilia-hero-title {{
+        color: white;
+        font-size: 2.4rem;
+        font-weight: 800;
+        margin-bottom: 0.8rem;
+    }}
+
+    .vigilia-hero-subtitle {{
+        color: rgba(241,245,249,0.92);
+        max-width: 780px;
+        line-height: 1.7;
+    }}
+
+    </style>
+
+    <div class="vigilia-hero-wrapper">
+
+        <div class="vigilia-hero-banner">
+
+            <img src="data:image/png;base64,{banner_base64}">
+
+=======
         letter-spacing: 0.08em;
         text-transform: uppercase;
     }
@@ -234,6 +326,7 @@ def render_hero():
     st.image(str(banner_path), use_container_width=True)
 
     st.markdown("""
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
             <div class="vigilia-hero-overlay">
 
                 <div class="vigilia-hero-badge">
@@ -247,11 +340,21 @@ def render_hero():
                 <div class="vigilia-hero-subtitle">
                     Sistema institucional de rastreamento estratégico de
                     publicações oficiais, análise documental automatizada
+<<<<<<< HEAD
+                    e monitoramento inteligente de atos normativos.
+                </div>
+
+            </div>
+
+        </div>
+
+=======
                     e monitoramento inteligente de atos normativos em
                     múltiplos diários oficiais.
                 </div>
 
             </div>
         </div>
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
     </div>
     """, unsafe_allow_html=True)

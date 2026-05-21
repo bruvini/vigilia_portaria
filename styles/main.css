@@ -642,4 +642,357 @@ a:hover {
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 18px !important;
     }
+<<<<<<< HEAD
+}
+
+/* =========================================================
+   HOME HERO
+   ========================================================= */
+
+.vigilia-home-hero {
+    position: relative;
+
+    padding: 3rem;
+
+    border-radius: 28px;
+
+    overflow: hidden;
+
+    background:
+        linear-gradient(135deg,
+            rgba(15, 23, 42, 0.98),
+            rgba(15, 23, 42, 0.92));
+
+    box-shadow:
+        0 20px 40px rgba(15, 23, 42, 0.18);
+
+    margin-bottom: 2rem;
+}
+
+.vigilia-home-badge {
+    display: inline-flex;
+
+    padding: 0.45rem 0.9rem;
+
+    border-radius: 999px;
+
+    background: rgba(14, 165, 233, 0.12);
+
+    border: 1px solid rgba(14, 165, 233, 0.22);
+
+    color: #7dd3fc;
+
+    font-size: 0.72rem;
+    font-weight: 700;
+
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+
+    margin-bottom: 1.4rem;
+}
+
+.vigilia-home-title {
+    font-size: 3rem;
+    line-height: 1.05;
+
+    font-weight: 800;
+
+    letter-spacing: -0.05em;
+
+    color: white;
+
+    max-width: 820px;
+
+    margin-bottom: 1.25rem;
+}
+
+.vigilia-home-description {
+    max-width: 760px;
+
+    color: rgba(255, 255, 255, 0.78);
+
+    font-size: 1.05rem;
+    line-height: 1.8;
+
+    margin-bottom: 2rem;
+}
+
+.vigilia-home-stats {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.vigilia-stat-card {
+    min-width: 140px;
+
+    padding: 1rem 1.2rem;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.06),
+            rgba(255, 255, 255, 0.03));
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    backdrop-filter: blur(10px);
+}
+
+.vigilia-stat-number {
+    color: white;
+
+    font-size: 1.2rem;
+    font-weight: 800;
+
+    margin-bottom: 0.25rem;
+}
+
+.vigilia-stat-label {
+    color: rgba(255, 255, 255, 0.62);
+
+    font-size: 0.82rem;
+}
+
+/* =========================================================
+   SECTION HEADER
+   ========================================================= */
+
+.vigilia-section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+
+    margin-bottom: 1.25rem;
+}
+
+.vigilia-section-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 44px;
+    height: 44px;
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(14, 165, 233, 0.12),
+            rgba(14, 165, 233, 0.05));
+
+    color: var(--brand-primary);
+
+    flex-shrink: 0;
+}
+
+.vigilia-section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+
+    color: var(--text-primary);
+
+    margin-bottom: 0.2rem;
+}
+
+.vigilia-section-subtitle {
+    color: var(--text-secondary);
+
+    font-size: 0.92rem;
+}
+
+/* =========================================================
+   RESULTADOS
+   ========================================================= */
+
+.vigilia-results-counter {
+    margin-bottom: 1rem;
+
+    color: var(--text-muted);
+
+    font-size: 0.82rem;
+    font-weight: 700;
+
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.vigilia-group-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+
+    color: var(--text-primary);
+}
+
+.vigilia-result-card {
+    padding: 1.4rem;
+
+    border-radius: 22px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.94),
+            rgba(255, 255, 255, 0.82));
+
+    border: 1px solid rgba(226, 232, 240, 0.8);
+
+    box-shadow:
+        0 10px 24px rgba(15, 23, 42, 0.05);
+
+    margin-bottom: 1rem;
+
+    transition: all 0.2s ease;
+}
+
+.vigilia-result-card:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 18px 34px rgba(15, 23, 42, 0.08);
+}
+
+.vigilia-result-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+
+    margin-bottom: 1rem;
+}
+
+.vigilia-result-hierarchy {
+    color: var(--text-muted);
+
+    font-size: 0.78rem;
+
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.vigilia-result-date {
+    color: var(--text-muted);
+
+    font-size: 0.82rem;
+}
+
+.vigilia-result-title a {
+    font-size: 1.15rem;
+    font-weight: 700;
+
+    line-height: 1.5;
+
+    color: var(--text-primary);
+
+    text-decoration: none;
+}
+
+.vigilia-result-description {
+    margin-top: 0.9rem;
+
+    color: var(--text-secondary);
+
+    line-height: 1.8;
+
+    font-size: 0.95rem;
+}
+
+.vigilia-result-actions {
+    margin-top: 1.2rem;
+}
+
+.vigilia-result-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+
+    padding: 0.8rem 1rem;
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(135deg,
+            var(--brand-primary),
+            var(--brand-primary-dark));
+
+    color: white !important;
+
+    font-size: 0.9rem;
+    font-weight: 700;
+
+    text-decoration: none;
+
+    transition: all 0.2s ease;
+}
+
+.vigilia-result-button:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 12px 24px rgba(14, 165, 233, 0.24);
+}
+
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
+
+.vigilia-empty-state {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    padding: 1.4rem;
+
+    border-radius: 22px;
+
+    background:
+        linear-gradient(135deg,
+            rgba(255, 255, 255, 0.94),
+            rgba(255, 255, 255, 0.82));
+
+    border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.vigilia-empty-icon {
+    color: #f59e0b;
+}
+
+.vigilia-empty-title {
+    font-size: 1rem;
+    font-weight: 700;
+
+    color: var(--text-primary);
+
+    margin-bottom: 0.2rem;
+}
+
+.vigilia-empty-text {
+    color: var(--text-secondary);
+
+    font-size: 0.92rem;
+}
+
+/* =========================================================
+   BADGE
+   ========================================================= */
+
+.vigilia-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-left: 0.45rem;
+
+    padding: 0.2rem 0.55rem;
+
+    border-radius: 999px;
+
+    font-size: 0.68rem;
+    font-weight: 700;
+
+    letter-spacing: 0.06em;
+=======
+>>>>>>> 71695c9 (feat: implement DOU data scraper and integrate search page with filters)
 }
