@@ -4,8 +4,7 @@ import pandas as pd
 from components.hero import render_hero
 from components.footer import render_footer
 from services.dou_service import buscar_dou
-# ATENÇÃO: Importação corrigida para a nova função sem cache
-from services.doesc_service import buscar_doesc_direto
+from services.doesc_service import buscar_doesc
 
 # ---------------------------------------------------------------------------
 # Ícones SVG reutilizáveis
@@ -23,8 +22,7 @@ def _executar_dou(data: date, palavras: list[str]) -> pd.DataFrame:
     return buscar_dou(data_publicacao=data, palavras_chave=palavras)
 
 def _executar_doesc(data: date, palavras: list[str]) -> pd.DataFrame:
-    # ATENÇÃO: Chamada interna atualizada para a nova função direta
-    return buscar_doesc_direto(data_publicacao=data, palavras_chave=palavras)
+    return buscar_doesc(data_publicacao=data, palavras_chave=palavras)
 
 # ---------------------------------------------------------------------------
 # Seção: Painel de Filtros
@@ -183,7 +181,7 @@ def _destacar_palavras(texto: str, palavras: list[str]) -> str:
     for palavra in palavras:
         if not palavra:
             continue
-        padrao = re.compile(re.compile(re.escape(palavra), re.IGNORECASE))
+        padrao = re.compile(re.escape(palavra), re.IGNORECASE)
         texto = padrao.sub(lambda m: f'<mark class="keyword-highlight">{m.group()}</mark>', texto)
     return texto
 
