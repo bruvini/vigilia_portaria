@@ -4,7 +4,7 @@ import pandas as pd
 from components.hero import render_hero
 from components.footer import render_footer
 from services.dou_service import buscar_dou
-from services.doesc_service import buscar_doesc
+from services.doesc_service import buscar_doesc_direto
 
 # ---------------------------------------------------------------------------
 # Ícones SVG reutilizáveis
@@ -22,7 +22,7 @@ def _executar_dou(data: date, palavras: list[str]) -> pd.DataFrame:
     return buscar_dou(data_publicacao=data, palavras_chave=palavras)
 
 def _executar_doesc(data: date, palavras: list[str]) -> pd.DataFrame:
-    return buscar_doesc(data_publicacao=data, palavras_chave=palavras)
+    return buscar_doesc_direto(data_publicacao=data, palavras_chave=palavras)
 
 # ---------------------------------------------------------------------------
 # Seção: Painel de Filtros
