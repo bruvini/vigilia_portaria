@@ -12,7 +12,6 @@ from services.doesc_service import buscar_doesc_direto
 # Ícones SVG
 # -----------------------------------------------------------------------------
 
-<<<<<<< HEAD
 _ICON_FILTER = """
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
 viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -68,8 +67,6 @@ def _executar_dou(
     )
 
 
-=======
->>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 def _executar_doesc(
     data: date,
     palavras: list[str],
@@ -80,7 +77,6 @@ def _executar_doesc(
         palavras_chave=palavras,
         operador=operador,
     )
-<<<<<<< HEAD
 
 
 # -----------------------------------------------------------------------------
@@ -132,8 +128,6 @@ def _render_intro():
 # -----------------------------------------------------------------------------
 # Painel de filtros
 # -----------------------------------------------------------------------------
-=======
->>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 
 def _render_filtros() -> dict:
 
@@ -186,25 +180,6 @@ def _render_filtros() -> dict:
                 "E → retorna apenas publicações contendo TODOS os termos."
             ),
         )
-<<<<<<< HEAD
-=======
-    with col2:
-        palavras_raw = st.text_input(
-            "Palavras-chave",
-            placeholder="Ex: convênio, repasse, município...",
-            help="Separe os termos por vírgula. A busca é feita no título e no texto do ato.",
-        )
-
-    operador = st.radio(
-        "Modo da pesquisa",
-        options=["OU", "E"],
-        horizontal=True,
-        help=(
-            "OU: retorna publicações contendo qualquer um dos termos.\n"
-            "E: retorna apenas publicações que contenham TODOS os termos simultaneamente."
-        ),
-    )
->>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
 
     fontes = []
 
@@ -290,6 +265,63 @@ def _render_resultados(
         """,
         unsafe_allow_html=True,
     )
+
+    # -------------------------------------------------------------------------
+    # PAINEL DE INTEROPERABILIDADE (FHIR & HL7)
+    # -------------------------------------------------------------------------
+    with st.expander("🔗 Interoperabilidade de Saúde (FHIR & HL7 v3 / Messaging)"):
+        st.markdown("""
+        <div style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.8rem;">
+            Esta seção demonstra a interoperabilidade semântica do Vigília. Os atos normativos extraídos 
+            são estruturados como recursos <strong>FHIR DocumentReference</strong> (R4) e encapsulados 
+            em um <strong>FHIR Message Bundle</strong> (HL7) para futura integração com barramentos de saúde do SUS e do PEP municipal.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        try:
+            from services.fhir_service import to_fhir_document_reference, create_hl7_fhir_message_bundle
+            import json
+            
+            # Converter linhas para recursos FHIR
+            fhir_resources = []
+            for _, row in df.iterrows():
+                act_dict = row.to_dict()
+                if "tipo" not in act_dict:
+                    from services.doesc_service import _extrair_tipo
+                    act_dict["tipo"] = _extrair_tipo(act_dict.get("titulo", ""), act_dict.get("hierarquia", ""))
+                fhir_res = to_fhir_document_reference(act_dict)
+                fhir_resources.append(fhir_res)
+            
+            # Criar Bundle de Mensagem HL7/FHIR
+            hl7_bundle = create_hl7_fhir_message_bundle(fhir_resources)
+            bundle_json = json.dumps(hl7_bundle, indent=2, ensure_ascii=False)
+            
+            # Exibir visualização do primeiro recurso FHIR
+            if fhir_resources:
+                col_left, col_right = st.columns([1, 1])
+                with col_left:
+                    st.markdown("##### Exemplo de Recurso FHIR DocumentReference (Único)")
+                    st.json(fhir_resources[0])
+                with col_right:
+                    st.markdown("##### Estrutura do FHIR Message Bundle (HL7)")
+                    st.json({
+                        "resourceType": hl7_bundle["resourceType"],
+                        "id": hl7_bundle["id"],
+                        "type": hl7_bundle["type"],
+                        "timestamp": hl7_bundle["timestamp"],
+                        "total_entries": len(hl7_bundle["entry"]),
+                        "message_header": hl7_bundle["entry"][0]["resource"]
+                    })
+            
+            st.download_button(
+                label="📥 Baixar FHIR Bundle Completo (JSON)",
+                data=bundle_json,
+                file_name=f"vigilia_fhir_bundle_{df['data'].iloc[0].replace('/', '-')}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"Erro ao processar mapeamento FHIR: {e}")
 
     nomes_fontes = {
         "DOU": "Diário Oficial da União",
@@ -506,7 +538,6 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
             ):
 
                 try:
-<<<<<<< HEAD
 
                     df = _executar_doesc(
                         data,
@@ -514,9 +545,6 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
                         operador,
                     )
 
-=======
-                    df = _executar_doesc(data, palavras, operador)
->>>>>>> 609acfb (feat(search): add AND/OR logical operators for keyword filtering - Add operador='OU'|'E' param to buscar_doesc_direto() and alias - OU uses any(): matches if any keyword is found - E uses all(): matches only when ALL keywords are present - Uses unified texto_completo for cleaner matching (resumo+assunto+categoria) - matched_keyword now lists all matched terms (especially useful in AND mode) - Add st.radio 'Modo da pesquisa' selector in _render_filtros() - Forward operador through _executar_varredura -> _executar_doesc -> service - Validated: OU=76 results, E=4 results for JOINVILLE+SAUDE on 20/05/2026)
                     df["origem"] = "DOE-SC"
                     df["data"] = data_str
 

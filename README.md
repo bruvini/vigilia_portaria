@@ -36,8 +36,14 @@ streamlit run streamlit_app.py
 
 ```
 vigilia_portaria/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # Pipeline de CI/CD (GitHub Actions)
 ├── streamlit_app.py            # Ponto de entrada da aplicação
 ├── requirements.txt            # Dependências do projeto
+├── GOVERNANCE.md               # Políticas de ramificação, PR e hooks Git
+├── SECURITY.md                 # Políticas de segurança e PII
+├── verify.py                   # Script de verificação sintática e linter local
 ├── .streamlit/
 │   └── config.toml             # Configuração do tema (Light Mode forçado)
 ├── assets/                     # Imagens e recursos estáticos
@@ -50,7 +56,8 @@ vigilia_portaria/
 │   └── home.py                 # Página principal com filtros, orquestração e resultados
 ├── services/
 │   ├── dou_service.py          # Motor de busca do DOU via Liferay Script
-│   └── doesc_service.py        # Motor de busca do DOE-SC via API REST CKAN pública
+│   ├── doesc_service.py        # Motor de busca do DOE-SC via API REST CKAN pública
+│   └── fhir_service.py         # Serviço de interoperabilidade de saúde (FHIR/HL7)
 ├── styles/
 │   └── main.css                # Folha de estilos principal (Light Theme)
 └── utils/
@@ -165,3 +172,22 @@ A interface da Plataforma Vigília foi refatorada e harmonizada seguindo diretri
 
 4. **Identificação de Município**:
    - Varredura de texto simples no ato da renderização dos resultados do DOE-SC. Se houver menção à cidade de **Joinville**, um badge estilizado azul destacado é adicionado ao lado do título: `📍 Município: Joinville`.
+
+---
+
+## Interoperabilidade e Padrões de Saúde (FHIR, HL7 e SNOMED CT)
+
+Para garantir que a plataforma atenda aos requisitos de integração e saúde digital, a plataforma implementa uma camada dedicada de interoperabilidade:
+
+1. **Mapeamento FHIR R4 (`DocumentReference`)**:
+   - Cada portaria, decreto ou ato normativo filtrado é convertido programaticamente em um recurso `DocumentReference` do FHIR R4.
+   - Os metadados como título, hierarquia, link e data da publicação são organizados seguindo o esquema padrão internacional. O texto da portaria é anexado via codificação Base64 no próprio recurso (`content.attachment.data`).
+
+2. **Mensageria HL7 (FHIR Message Bundle)**:
+   - Para envio de notificações a barramentos de saúde do SUS ou do Prontuário Eletrônico do município (PEP), a plataforma agrupa os recursos em um `Bundle` do tipo `message` com cabeçalho `MessageHeader`.
+
+3. **Codificação Semântica com SNOMED CT**:
+   - A taxonomia dos atos normativos é mapeada a códigos padronizados do SNOMED CT:
+     - `308910008` (Clinical guidelines policy document) para portarias e protocolos.
+     - `713426002` (Legal document) para decretos legislativos.
+   - Comentários arquiteturais e diretrizes técnicas foram incluídos em `services/fhir_service.py` especificando como estender a plataforma com IA/NLP para identificação automática de termos clínicos (ex: Dengue, COVID-19) e integração com servidores de terminologia (ex: Ontoserver, Snowstorm).
