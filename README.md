@@ -191,3 +191,25 @@ Para garantir que a plataforma atenda aos requisitos de integração e saúde di
      - `308910008` (Clinical guidelines policy document) para portarias e protocolos.
      - `713426002` (Legal document) para decretos legislativos.
    - Comentários arquiteturais e diretrizes técnicas foram incluídos em `services/fhir_service.py` especificando como estender a plataforma com IA/NLP para identificação automática de termos clínicos (ex: Dengue, COVID-19) e integração com servidores de terminologia (ex: Ontoserver, Snowstorm).
+
+---
+
+## Diretrizes de Desenvolvimento e Interface
+
+### Correção de Renderização de HTML/CSS (Streamlit Markdown)
+Ao injetar elementos HTML ou estilos CSS na interface utilizando `st.markdown(..., unsafe_allow_html=True)`, o parser de Markdown do Streamlit interpreta qualquer recuo de 4 ou mais espaços (indentação comum em blocos Python, como funções e condicionais) como uma instrução para renderizar texto literal (`<pre><code>`), quebrando o layout visual.
+
+Para evitar essa regressão de layout:
+1. **Achatamento Total (Recomendado)**: Remova qualquer indentação e alinhe todas as linhas dentro das strings multilinha HTML/CSS/SVG diretamente na margem esquerda (0 espaços de recuo). Essa é a abordagem mais robusta e segura.
+2. **Cuidado com Interpolação e `textwrap.dedent`**: Se você usar `textwrap.dedent(...)`, saiba que se qualquer string interpolada (como um ícone SVG ou imagem base64) contiver linhas com 0 espaços, o prefixo comum calculado será `0`. Isso fará com que `textwrap.dedent` não remova espaço algum da string principal, mantendo a indentação e quebrando a renderização.
+3. **Exemplo prático de Achatamento**:
+   ```python
+   import streamlit as st
+
+   def render_componente():
+       st.markdown("""<div class="custom-card">
+<h3>Título do Card</h3>
+<p>Descrição do componente com estilos aplicados.</p>
+</div>""", unsafe_allow_html=True)
+   ```
+4. Essa diretriz deve ser estritamente seguida em todas as views e componentes da aplicação (`pages/home.py`, `components/hero.py`, `components/cards.py`, `components/footer.py`, `components/sidebar.py`).

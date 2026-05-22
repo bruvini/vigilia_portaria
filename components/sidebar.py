@@ -1,5 +1,6 @@
 import base64
 from pathlib import Path
+import textwrap
 
 import streamlit as st
 
@@ -14,17 +15,12 @@ if hasattr(st, "dialog"):
     def _mostrar_surpresa():
         st.image("assets/foto_barbara.png", use_container_width=True)
 
-        st.markdown("""
-        <div style="
-            text-align:center;
-            color:#475569;
-            font-size:0.95rem;
-            margin-top:0.5rem;
-            line-height:1.7;
-        ">
-            Eu literalmente avisei pra não clicar.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            """<div style="text-align:center; color:#475569; font-size:0.95rem; margin-top:0.5rem; line-height:1.7;">
+Eu literalmente avisei pra não clicar.
+</div>""",
+            unsafe_allow_html=True,
+        )
 
         if st.button("Fechar", key="fechar_barbara_dialog"):
             st.rerun()
@@ -66,7 +62,7 @@ def _img_to_base64(path: str) -> str:
 
 def _inject_sidebar_css():
 
-    st.markdown("""
+    st.markdown(textwrap.dedent("""
     <style>
 
     section[data-testid="stSidebar"] {
@@ -347,7 +343,7 @@ def _inject_sidebar_css():
     }
 
     </style>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -372,44 +368,34 @@ def render_sidebar():
             else ""
         )
 
-        st.markdown(f"""
-        <div class="vigilia-sidebar-header">
-
-            {logo_tag}
-
-            <div class="vigilia-sidebar-app-name">
-                Vigília
-            </div>
-
-            <div class="vigilia-sidebar-subtitle">
-                Inteligência Regulatória
-            </div>
-
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="vigilia-sidebar-header">
+{logo_tag}
+<div class="vigilia-sidebar-app-name">
+Vigília
+</div>
+<div class="vigilia-sidebar-subtitle">
+Inteligência Regulatória
+</div>
+</div>""", unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # DESCRIÇÃO
         # -------------------------------------------------------------------
 
-        st.markdown("""
-        <div class="vigilia-sidebar-description">
-            Plataforma institucional para monitoramento automatizado
-            de publicações oficiais, análise normativa e rastreamento
-            estratégico de atos administrativos.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-sidebar-description">
+Plataforma institucional para monitoramento automatizado
+de publicações oficiais, análise normativa e rastreamento
+estratégico de atos administrativos.
+</div>""", unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # SEÇÃO
         # -------------------------------------------------------------------
 
-        st.markdown("""
-        <div class="vigilia-sidebar-section">
-            <div class="vigilia-sidebar-dot"></div>
-            Fontes de Monitoramento
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-sidebar-section">
+<div class="vigilia-sidebar-dot"></div>
+Fontes de Monitoramento
+</div>""", unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # DOU
@@ -423,12 +409,10 @@ def render_sidebar():
             key="src_dou",
         )
 
-        st.markdown("""
-        <div class="vigilia-source-description">
-            Varredura da Seção 1 com foco em atos normativos,
-            portarias e publicações vinculadas ao Ministério da Saúde.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-source-description">
+Varredura da Seção 1 com foco em atos normativos,
+portarias e publicações vinculadas ao Ministério da Saúde.
+</div>""", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -444,12 +428,10 @@ def render_sidebar():
             key="src_doesc",
         )
 
-        st.markdown("""
-        <div class="vigilia-source-description">
-            Monitoramento de edições ordinárias e extras do Estado,
-            incluindo atos relacionados à saúde e gestão pública.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-source-description">
+Monitoramento de edições ordinárias e extras do Estado,
+incluindo atos relacionados à saúde e gestão pública.
+</div>""", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -465,14 +447,12 @@ def render_sidebar():
             key="src_doej",
         )
 
-        st.markdown("""
-        <div class="vigilia-source-description">
-            Integração municipal em fase final de desenvolvimento.
-            <span class="vigilia-dev-badge">
-                EM BREVE
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-source-description">
+Integração municipal em fase final de desenvolvimento.
+<span class="vigilia-dev-badge">
+EM BREVE
+</span>
+</div>""", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -509,16 +489,9 @@ def render_sidebar():
                     use_container_width=True
                 )
 
-                st.markdown("""
-                <div style="
-                    text-align:center;
-                    color:#475569;
-                    margin-top:0.6rem;
-                    line-height:1.7;
-                ">
-                    Eu literalmente avisei pra não clicar.
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown("""<div style="text-align:center; color:#475569; margin-top:0.6rem; line-height:1.7;">
+Eu literalmente avisei pra não clicar.
+</div>""", unsafe_allow_html=True)
 
                 if st.button("Fechar", key="close_barbara"):
                     st.session_state["show_barbara"] = False
@@ -528,23 +501,13 @@ def render_sidebar():
         # FOOTER
         # -------------------------------------------------------------------
 
-        st.markdown("""
-        <div class="vigilia-sidebar-footer">
-
-            <strong>
-                Secretaria Municipal da Saúde
-            </strong>
-
-            <br>
-
-            Joinville • Unidade de Convênios e Parcerias
-
-            <br><br>
-
-            Desenvolvido por
-            <span class="vigilia-sidebar-footer-highlight">
-                Enf. Bruno Vinícius
-            </span>
-
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("""<div class="vigilia-sidebar-footer">
+<strong>Secretaria Municipal da Saúde</strong>
+<br>
+Joinville • Unidade de Convênios e Parcerias
+<br><br>
+Desenvolvido por
+<span class="vigilia-sidebar-footer-highlight">
+Enf. Bruno Vinícius
+</span>
+</div>""", unsafe_allow_html=True)

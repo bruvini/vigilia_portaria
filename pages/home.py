@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
+import textwrap
 
 from components.hero import render_hero
 from components.footer import render_footer
@@ -85,42 +86,33 @@ def _executar_doesc(
 
 def _render_intro():
     st.markdown(
-        """
-        <div class="vigilia-home-hero">
-
-            <div class="vigilia-home-badge">
-                Plataforma Institucional • Monitoramento Estratégico
-            </div>
-
-            <h1 class="vigilia-home-title">
-                Inteligência automatizada para monitoramento
-                de Diários Oficiais
-            </h1>
-
-            <p class="vigilia-home-description">
-                Centralize a busca, rastreie publicações relevantes em tempo real
-                e reduza o tempo operacional das equipes institucionais.
-            </p>
-
-            <div class="vigilia-home-stats">
-                <div class="vigilia-stat-card">
-                    <div class="vigilia-stat-number">DOU</div>
-                    <div class="vigilia-stat-label">União</div>
-                </div>
-
-                <div class="vigilia-stat-card">
-                    <div class="vigilia-stat-number">DOE</div>
-                    <div class="vigilia-stat-label">Santa Catarina</div>
-                </div>
-
-                <div class="vigilia-stat-card">
-                    <div class="vigilia-stat-number">24h</div>
-                    <div class="vigilia-stat-label">Monitoramento</div>
-                </div>
-            </div>
-
-        </div>
-        """,
+        """<div class="vigilia-home-hero">
+<div class="vigilia-home-badge">
+Plataforma Institucional • Monitoramento Estratégico
+</div>
+<h1 class="vigilia-home-title">
+Inteligência automatizada para monitoramento
+de Diários Oficiais
+</h1>
+<p class="vigilia-home-description">
+Centralize a busca, rastreie publicações relevantes em tempo real
+e reduza o tempo operacional das equipes institucionais.
+</p>
+<div class="vigilia-home-stats">
+<div class="vigilia-stat-card">
+<div class="vigilia-stat-number">DOU</div>
+<div class="vigilia-stat-label">União</div>
+</div>
+<div class="vigilia-stat-card">
+<div class="vigilia-stat-number">DOE</div>
+<div class="vigilia-stat-label">Santa Catarina</div>
+</div>
+<div class="vigilia-stat-card">
+<div class="vigilia-stat-number">24h</div>
+<div class="vigilia-stat-label">Monitoramento</div>
+</div>
+</div>
+</div>""",
         unsafe_allow_html=True,
     )
 
@@ -132,23 +124,19 @@ def _render_intro():
 def _render_filtros() -> dict:
 
     st.markdown(
-        f"""
-        <div class="vigilia-section-header">
-            <div class="vigilia-section-icon">
-                {_ICON_FILTER}
-            </div>
-
-            <div>
-                <div class="vigilia-section-title">
-                    Filtros da Varredura
-                </div>
-
-                <div class="vigilia-section-subtitle">
-                    Configure os parâmetros utilizados na pesquisa automatizada.
-                </div>
-            </div>
-        </div>
-        """,
+        f"""<div class="vigilia-section-header">
+<div class="vigilia-section-icon">
+{_ICON_FILTER}
+</div>
+<div>
+<div class="vigilia-section-title">
+Filtros da Varredura
+</div>
+<div class="vigilia-section-subtitle">
+Configure os parâmetros utilizados na pesquisa automatizada.
+</div>
+</div>
+</div>""",
         unsafe_allow_html=True,
     )
 
@@ -210,59 +198,47 @@ def _render_resultados(
 ) -> None:
 
     st.markdown(
-        f"""
-        <div class="vigilia-results-header">
-
-            <div class="vigilia-section-header">
-                <div class="vigilia-section-icon">
-                    {_ICON_RESULT}
-                </div>
-
-                <div>
-                    <div class="vigilia-section-title">
-                        Resultados Encontrados
-                    </div>
-
-                    <div class="vigilia-section-subtitle">
-                        Publicações identificadas na varredura institucional.
-                    </div>
-                </div>
-            </div>
-
-        </div>
-        """,
+        f"""<div class="vigilia-results-header">
+<div class="vigilia-section-header">
+<div class="vigilia-section-icon">
+{_ICON_RESULT}
+</div>
+<div>
+<div class="vigilia-section-title">
+Resultados Encontrados
+</div>
+<div class="vigilia-section-subtitle">
+Publicações identificadas na varredura institucional.
+</div>
+</div>
+</div>
+</div>""",
         unsafe_allow_html=True,
     )
 
     if df.empty:
         st.markdown(
-            f"""
-            <div class="vigilia-empty-state">
-                <div class="vigilia-empty-icon">
-                    {_ICON_ALERT}
-                </div>
-
-                <div>
-                    <div class="vigilia-empty-title">
-                        Nenhuma publicação encontrada
-                    </div>
-
-                    <div class="vigilia-empty-text">
-                        Ajuste os filtros ou revise as palavras-chave utilizadas.
-                    </div>
-                </div>
-            </div>
-            """,
+            f"""<div class="vigilia-empty-state">
+<div class="vigilia-empty-icon">
+{_ICON_ALERT}
+</div>
+<div>
+<div class="vigilia-empty-title">
+Nenhuma publicação encontrada
+</div>
+<div class="vigilia-empty-text">
+Ajuste os filtros ou revise as palavras-chave utilizadas.
+</div>
+</div>
+</div>""",
             unsafe_allow_html=True,
         )
         return
 
     st.markdown(
-        f"""
-        <div class="vigilia-results-counter">
-            {len(df)} publicação(ões) encontrada(s)
-        </div>
-        """,
+        f"""<div class="vigilia-results-counter">
+{len(df)} publicação(ões) encontrada(s)
+</div>""",
         unsafe_allow_html=True,
     )
 
@@ -270,13 +246,14 @@ def _render_resultados(
     # PAINEL DE INTEROPERABILIDADE (FHIR & HL7)
     # -------------------------------------------------------------------------
     with st.expander("🔗 Interoperabilidade de Saúde (FHIR & HL7 v3 / Messaging)"):
-        st.markdown("""
-        <div style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.8rem;">
-            Esta seção demonstra a interoperabilidade semântica do Vigília. Os atos normativos extraídos 
-            são estruturados como recursos <strong>FHIR DocumentReference</strong> (R4) e encapsulados 
-            em um <strong>FHIR Message Bundle</strong> (HL7) para futura integração com barramentos de saúde do SUS e do PEP municipal.
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            """<div style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.8rem;">
+Esta seção demonstra a interoperabilidade semântica do Vigília. Os atos normativos extraídos 
+são estruturados como recursos <strong>FHIR DocumentReference</strong> (R4) e encapsulados 
+em um <strong>FHIR Message Bundle</strong> (HL7) para futura integração com barramentos de saúde do SUS e do PEP municipal.
+</div>""",
+            unsafe_allow_html=True,
+        )
         
         try:
             from services.fhir_service import to_fhir_document_reference, create_hl7_fhir_message_bundle
@@ -352,11 +329,9 @@ def _render_resultados(
             st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
 
         st.markdown(
-            f"""
-            <div class="vigilia-group-title">
-                {nomes_fontes.get(origem_grupo, origem_grupo)}
-            </div>
-            """,
+            f"""<div class="vigilia-group-title">
+{nomes_fontes.get(origem_grupo, origem_grupo)}
+</div>""",
             unsafe_allow_html=True,
         )
 
@@ -385,45 +360,31 @@ def _render_resultados(
                 link = f"https://in.gov.br{link}"
 
             st.markdown(
-                f"""
-                <div class="vigilia-result-card">
-
-                    <div class="vigilia-result-top">
-
-                        <div class="vigilia-result-hierarchy">
-                            {hierarquia}
-                        </div>
-
-                        <div class="vigilia-result-date">
-                            {data_pub}
-                            {badge_origem}
-                        </div>
-
-                    </div>
-
-                    <div class="vigilia-result-title">
-                        <a href="{link}" target="_blank">
-                            {titulo_html}
-                        </a>
-                    </div>
-
-                    <div class="vigilia-result-description">
-                        {resumo_html if resumo else descricao_html}
-                    </div>
-
-                    <div class="vigilia-result-actions">
-                        <a
-                            href="{link}"
-                            target="_blank"
-                            class="vigilia-result-button"
-                        >
-                            {_ICON_SEARCH}
-                            Acessar publicação oficial
-                        </a>
-                    </div>
-
-                </div>
-                """,
+                f"""<div class="vigilia-result-card">
+<div class="vigilia-result-top">
+<div class="vigilia-result-hierarchy">
+{hierarquia}
+</div>
+<div class="vigilia-result-date">
+{data_pub}
+{badge_origem}
+</div>
+</div>
+<div class="vigilia-result-title">
+<a href="{link}" target="_blank">
+{titulo_html}
+</a>
+</div>
+<div class="vigilia-result-description">
+{resumo_html if resumo else descricao_html}
+</div>
+<div class="vigilia-result-actions">
+<a href="{link}" target="_blank" class="vigilia-result-button">
+{_ICON_SEARCH}
+Acessar publicação oficial
+</a>
+</div>
+</div>""",
                 unsafe_allow_html=True,
             )
 
