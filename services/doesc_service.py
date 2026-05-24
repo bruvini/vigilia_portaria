@@ -160,7 +160,14 @@ def buscar_doesc_direto(
         }
 
         try:
-            r = session.post(ENDPOINT, json=payload, timeout=25)
+            r = session.post(ENDPOINT, json=payload, timeout=25, verify=True)
+        except requests.exceptions.SSLError:
+            logger.warning("SSL verification falhou para DOE-SC, tentando sem verificação")
+            try:
+                r = session.post(ENDPOINT, json=payload, timeout=25, verify=False)
+            except Exception as e:
+                logger.error(f"Erro ao conectar ao DOE-SC mesmo sem SSL: {e}")
+                break
         except requests.exceptions.Timeout:
             logger.error(f"Timeout na requisição para o endpoint DOE-SC (página {pagina})")
             break

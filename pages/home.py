@@ -5,7 +5,7 @@ import textwrap
 
 from components.hero import render_hero
 from components.footer import render_footer
-from services.dou_service import buscar_dou
+from services.dou_service import buscar_dou_completo
 from services.doesc_service import buscar_doesc_direto
 
 
@@ -61,7 +61,7 @@ def _executar_dou(
     palavras: list[str],
     operador: str = "OU",
 ) -> pd.DataFrame:
-    return buscar_dou(
+    return buscar_dou_completo(
         data_publicacao=data,
         palavras_chave=palavras,
         operador=operador,
@@ -290,10 +290,11 @@ em um <strong>FHIR Message Bundle</strong> (HL7) para futura integração com ba
                         "message_header": hl7_bundle["entry"][0]["resource"]
                     })
             
+            data_arquivo = date.today().strftime("%d-%m-%Y")
             st.download_button(
                 label="📥 Baixar FHIR Bundle Completo (JSON)",
                 data=bundle_json,
-                file_name=f"vigilia_fhir_bundle_{df['data'].iloc[0].replace('/', '-')}.json",
+                file_name=f"vigilia_fhir_bundle_{data_arquivo}.json",
                 mime="application/json",
                 use_container_width=True
             )
@@ -467,7 +468,7 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
         if fonte == "Diário Oficial da União":
 
             with st.status(
-                f"Varrendo {fonte}...",
+                f"Varrendo {fonte} (Seções 1, 2 e 3)...",
                 expanded=False,
             ):
 
@@ -484,8 +485,16 @@ def _executar_varredura(filtros: dict) -> pd.DataFrame:
 
                     frames.append(df)
 
+                    secoes_info = ""
+                    if "secao_dou" in df.columns:
+                        cont = df["secao_dou"].value_counts().to_dict()
+                        secoes_info = " | ".join(
+                            f"{s}: {n}" for s, n in sorted(cont.items())
+                        )
+                        secoes_info = f" ({secoes_info})"
+
                     st.write(
-                        f"{len(df)} publicação(ões) encontradas no DOU."
+                        f"{len(df)} publicação(ões) encontradas no DOU{secoes_info}."
                     )
 
                 except Exception as e:
@@ -571,6 +580,13 @@ def render_home():
             )
 
             st.stop()
+
+        if not filtros["palavras"]:
+            st.warning(
+                "Nenhuma palavra-chave informada. A varredura retornará "
+                "todas as publicações do Ministério da Saúde no DOU e todas "
+                "as publicações do dia no DOE-SC, o que pode gerar muitos resultados."
+            )
 
         df_consolidado = _executar_varredura(filtros)
 

@@ -13,10 +13,8 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import urllib.parse
 from datetime import date
-from typing import Any, Optional
+from typing import Optional
 
 import pandas as pd
 import requests
@@ -34,6 +32,8 @@ logging.basicConfig(level=logging.INFO, format="[DOU API] %(levelname)s: %(messa
 
 URL_BASE = "https://www.in.gov.br/leiturajornal"
 DOMAIN   = "https://www.in.gov.br"
+
+SECOES = ["do1", "do2", "do3"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -53,7 +53,7 @@ def buscar_dou(
     operador: str = "OU",
     secao: str = "do1",
     orgao: Optional[str] = "Ministério da Saúde",
-    tipo_ato: Optional[str] = "Portaria",
+    tipo_ato: Optional[str] = None,
 ) -> pd.DataFrame:
     """
     Realiza a busca no DOU capturando o JSON embarcado e aplica filtros em memória.
@@ -74,7 +74,11 @@ def buscar_dou(
     try:
         # Busca a página de leitura do jornal com a data e seção
         params = {"data": data_fmt, "secao": secao}
-        r = requests.get(URL_BASE, params=params, headers=HEADERS, timeout=15, verify=False)
+        try:
+            r = requests.get(URL_BASE, params=params, headers=HEADERS, timeout=15, verify=True)
+        except requests.exceptions.SSLError:
+            logger.warning("SSL verification falhou para DOU, tentando sem verificação")
+            r = requests.get(URL_BASE, params=params, headers=HEADERS, timeout=15, verify=False)
         r.raise_for_status()
 
         soup = BeautifulSoup(r.text, "html.parser")
@@ -140,6 +144,46 @@ def buscar_dou(
         logger.error(f"Erro inesperado no DOU: {e}", exc_info=True)
 
     return pd.DataFrame(columns=COLUNAS)
+
+
+# ---------------------------------------------------------------------------
+# Busca Multi-Seção (do1 + do2 + do3)
+# ---------------------------------------------------------------------------
+
+def buscar_dou_completo(
+    data_publicacao: date,
+    palavras_chave: list[str],
+    operador: str = "OU",
+    orgao: Optional[str] = "Ministério da Saúde",
+    tipo_ato: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Busca nas três seções do DOU (do1, do2, do3) e retorna resultados consolidados.
+
+    Garante cobertura completa: portarias executivas (do1), atos de pessoal (do2)
+    e contratos/licitações (do3), eliminando duplicatas por link.
+    """
+    frames: list[pd.DataFrame] = []
+    for secao in SECOES:
+        df_sec = buscar_dou(
+            data_publicacao=data_publicacao,
+            palavras_chave=palavras_chave,
+            operador=operador,
+            secao=secao,
+            orgao=orgao,
+            tipo_ato=tipo_ato,
+        )
+        if not df_sec.empty:
+            df_sec["secao_dou"] = secao.upper()
+            frames.append(df_sec)
+
+    if not frames:
+        return pd.DataFrame(columns=COLUNAS)
+
+    df_total = pd.concat(frames, ignore_index=True)
+    df_total = df_total.drop_duplicates(subset=["link"], keep="first").reset_index(drop=True)
+    logger.info(f"Total consolidado DOU (todas as seções): {len(df_total)} publicações")
+    return df_total
 
 
 # ---------------------------------------------------------------------------
