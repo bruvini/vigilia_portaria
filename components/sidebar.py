@@ -16,9 +16,10 @@ if hasattr(st, "dialog"):
         st.image("assets/foto_barbara.png", use_container_width=True)
 
         st.markdown(
-            """<div style="text-align:center; color:#475569; font-size:0.95rem; margin-top:0.5rem; line-height:1.7;">
+            textwrap.dedent("""\
+                <div style="text-align:center; color:#475569; font-size:0.95rem; margin-top:0.5rem; line-height:1.7;">
 Eu literalmente avisei pra não clicar.
-</div>""",
+</div>"""),
             unsafe_allow_html=True,
         )
 
@@ -368,7 +369,8 @@ def render_sidebar():
             else ""
         )
 
-        st.markdown(f"""<div class="vigilia-sidebar-header">
+        st.markdown(textwrap.dedent(f"""\
+<div class="vigilia-sidebar-header">
 {logo_tag}
 <div class="vigilia-sidebar-app-name">
 Vigília
@@ -376,26 +378,28 @@ Vigília
 <div class="vigilia-sidebar-subtitle">
 Inteligência Regulatória
 </div>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # DESCRIÇÃO
         # -------------------------------------------------------------------
 
-        st.markdown("""<div class="vigilia-sidebar-description">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-sidebar-description">
 Plataforma institucional para monitoramento automatizado
 de publicações oficiais, análise normativa e rastreamento
 estratégico de atos administrativos.
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # SEÇÃO
         # -------------------------------------------------------------------
 
-        st.markdown("""<div class="vigilia-sidebar-section">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-sidebar-section">
 <div class="vigilia-sidebar-dot"></div>
 Fontes de Monitoramento
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         # -------------------------------------------------------------------
         # DOU
@@ -409,10 +413,11 @@ Fontes de Monitoramento
             key="src_dou",
         )
 
-        st.markdown("""<div class="vigilia-source-description">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-source-description">
 Varredura da Seção 1 com foco em atos normativos,
 portarias e publicações vinculadas ao Ministério da Saúde.
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -428,10 +433,11 @@ portarias e publicações vinculadas ao Ministério da Saúde.
             key="src_doesc",
         )
 
-        st.markdown("""<div class="vigilia-source-description">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-source-description">
 Monitoramento de edições ordinárias e extras do Estado,
 incluindo atos relacionados à saúde e gestão pública.
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -447,12 +453,13 @@ incluindo atos relacionados à saúde e gestão pública.
             key="src_doej",
         )
 
-        st.markdown("""<div class="vigilia-source-description">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-source-description">
 Integração municipal em fase final de desenvolvimento.
 <span class="vigilia-dev-badge">
 EM BREVE
 </span>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -489,9 +496,10 @@ EM BREVE
                     use_container_width=True
                 )
 
-                st.markdown("""<div style="text-align:center; color:#475569; margin-top:0.6rem; line-height:1.7;">
+                st.markdown(textwrap.dedent("""\
+<div style="text-align:center; color:#475569; margin-top:0.6rem; line-height:1.7;">
 Eu literalmente avisei pra não clicar.
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)
 
                 if st.button("Fechar", key="close_barbara"):
                     st.session_state["show_barbara"] = False
@@ -501,7 +509,8 @@ Eu literalmente avisei pra não clicar.
         # FOOTER
         # -------------------------------------------------------------------
 
-        st.markdown("""<div class="vigilia-sidebar-footer">
+        st.markdown(textwrap.dedent("""\
+<div class="vigilia-sidebar-footer">
 <strong>Secretaria Municipal da Saúde</strong>
 <br>
 Joinville • Unidade de Convênios e Parcerias
@@ -510,4 +519,4 @@ Desenvolvido por
 <span class="vigilia-sidebar-footer-highlight">
 Enf. Bruno Vinícius
 </span>
-</div>""", unsafe_allow_html=True)
+</div>"""), unsafe_allow_html=True)

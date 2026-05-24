@@ -518,38 +518,7 @@ section[data-testid="stSidebar"]>div {
    FOOTER
    ========================================================= */
 
-.vigilia-footer {
-    margin-top: 3rem;
-    padding-top: 1rem;
-    padding-bottom: 1rem;
-
-    text-align: center;
-}
-
-.vigilia-footer-divider {
-    border: none;
-    border-top: 1px solid rgba(226, 232, 240, 0.85);
-
-    margin-bottom: 1.5rem;
-}
-
-.vigilia-footer-brand {
-    font-size: 0.88rem;
-    font-weight: 700;
-
-    letter-spacing: 0.04em;
-
-    color: var(--text-secondary);
-
-    margin-bottom: 0.35rem;
-}
-
-.vigilia-footer-sub {
-    color: var(--text-muted);
-
-    font-size: 0.76rem;
-    line-height: 1.7;
-}
+/* Estilos de rodapé premium integrados diretamente no componente (footer.py) */
 
 /* =========================================================
    TYPOGRAPHY
@@ -804,6 +773,13 @@ a:hover {
 /* =========================================================
    RESULTADOS
    ========================================================= */
+
+.vigilia-results-header {
+    margin-top: 2.2rem;
+    margin-bottom: 1.6rem;
+    padding-top: 1.6rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.85);
+}
 
 .vigilia-results-counter {
     margin-bottom: 1rem;

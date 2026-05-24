@@ -65,3 +65,30 @@ if git diff --cached | grep -E '^(<<<<<<<|=======|>>>>>>>)' >/dev/null; then
     exit 1
 fi
 ```
+
+## 5. Proteção dos Serviços de Saúde Interoperáveis
+
+Os arquivos `services/fhir_service.py` (FHIR R4, HL7 e SNOMED CT) são **componentes protegidos** da arquitetura institucional:
+
+*   **Proibição de Remoção:** É estritamente proibido remover, desativar ou comentar as funções `to_fhir_document_reference()`, `create_hl7_fhir_message_bundle()` ou qualquer referência a códigos SNOMED CT.
+*   **Isolamento na UI:** Alterações na camada de apresentação (`pages/home.py`) devem garantir que o processamento FHIR seja sempre envolvido por `try-except` e executado **após** a renderização dos cards de resultado.
+*   **Cache Obrigatório:** O cálculo do Bundle FHIR deve utilizar `@st.cache_data` para evitar reprocessamento desnecessário em re-renders do Streamlit.
+
+## 6. Regra de Renderização HTML/CSS no Streamlit
+
+Todo componente que injeta HTML multilinha via `st.markdown(..., unsafe_allow_html=True)` **deve** utilizar `textwrap.dedent()` para evitar que o parser Markdown interprete indentação Python como bloco `<pre><code>`:
+
+```python
+# ✅ OBRIGATÓRIO para CSS/HTML puro
+st.markdown(textwrap.dedent("""\
+    <style>.classe { prop: valor; }</style>
+    <div class="classe">Conteúdo</div>"""), unsafe_allow_html=True)
+
+# ✅ Para f-strings com dados variáveis (ex: base64), usar string achatada
+st.markdown(
+f"""<div class="card">
+<img src="data:image/png;base64,{base64_val}">
+</div>""", unsafe_allow_html=True)
+```
+
+Violações desta regra serão sinalizadas como erros de lint no pipeline de CI.

@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import date
 import pandas as pd
 import textwrap
+import json
 
 from components.hero import render_hero
 from components.footer import render_footer
@@ -78,6 +79,46 @@ def _executar_doesc(
         palavras_chave=palavras,
         operador=operador,
     )
+
+
+# -----------------------------------------------------------------------------
+# Bundle FHIR (calculado uma vez por DataFrame, com cache)
+# -----------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False)
+def _build_fhir_bundle(df_json: str) -> tuple[list, dict, str]:
+    """
+    Constrói o FHIR Bundle a partir do DataFrame serializado.
+    Utiliza @st.cache_data para evitar reprocessamento em re-renders do Streamlit.
+    O cálculo é limitado a no máximo 100 registros na prévia;
+    o Bundle para download contém todos os registros.
+    Retorna: (fhir_resources_preview, hl7_bundle, bundle_json)
+    """
+    from services.fhir_service import to_fhir_document_reference, create_hl7_fhir_message_bundle
+
+    df = pd.read_json(df_json, orient="records")
+
+    fhir_resources: list[dict] = []
+    for _, row in df.iterrows():
+        act_dict = row.to_dict()
+        if "tipo" not in act_dict:
+            try:
+                from services.doesc_service import _extrair_tipo
+                act_dict["tipo"] = _extrair_tipo(
+                    act_dict.get("titulo", ""),
+                    act_dict.get("hierarquia", ""),
+                )
+            except Exception:
+                act_dict["tipo"] = "ATO"
+        fhir_resources.append(to_fhir_document_reference(act_dict))
+
+    hl7_bundle = create_hl7_fhir_message_bundle(fhir_resources)
+    bundle_json = json.dumps(hl7_bundle, indent=2, ensure_ascii=False)
+
+    # A prévia visual mostra até 50 recursos
+    fhir_preview = fhir_resources[:50]
+
+    return fhir_preview, hl7_bundle, bundle_json
 
 
 # -----------------------------------------------------------------------------
@@ -242,65 +283,6 @@ Ajuste os filtros ou revise as palavras-chave utilizadas.
         unsafe_allow_html=True,
     )
 
-    # -------------------------------------------------------------------------
-    # PAINEL DE INTEROPERABILIDADE (FHIR & HL7)
-    # -------------------------------------------------------------------------
-    with st.expander("🔗 Interoperabilidade de Saúde (FHIR & HL7 v3 / Messaging)"):
-        st.markdown(
-            """<div style="font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.8rem;">
-Esta seção demonstra a interoperabilidade semântica do Vigília. Os atos normativos extraídos 
-são estruturados como recursos <strong>FHIR DocumentReference</strong> (R4) e encapsulados 
-em um <strong>FHIR Message Bundle</strong> (HL7) para futura integração com barramentos de saúde do SUS e do PEP municipal.
-</div>""",
-            unsafe_allow_html=True,
-        )
-        
-        try:
-            from services.fhir_service import to_fhir_document_reference, create_hl7_fhir_message_bundle
-            import json
-            
-            # Converter linhas para recursos FHIR
-            fhir_resources = []
-            for _, row in df.iterrows():
-                act_dict = row.to_dict()
-                if "tipo" not in act_dict:
-                    from services.doesc_service import _extrair_tipo
-                    act_dict["tipo"] = _extrair_tipo(act_dict.get("titulo", ""), act_dict.get("hierarquia", ""))
-                fhir_res = to_fhir_document_reference(act_dict)
-                fhir_resources.append(fhir_res)
-            
-            # Criar Bundle de Mensagem HL7/FHIR
-            hl7_bundle = create_hl7_fhir_message_bundle(fhir_resources)
-            bundle_json = json.dumps(hl7_bundle, indent=2, ensure_ascii=False)
-            
-            # Exibir visualização do primeiro recurso FHIR
-            if fhir_resources:
-                col_left, col_right = st.columns([1, 1])
-                with col_left:
-                    st.markdown("##### Exemplo de Recurso FHIR DocumentReference (Único)")
-                    st.json(fhir_resources[0])
-                with col_right:
-                    st.markdown("##### Estrutura do FHIR Message Bundle (HL7)")
-                    st.json({
-                        "resourceType": hl7_bundle["resourceType"],
-                        "id": hl7_bundle["id"],
-                        "type": hl7_bundle["type"],
-                        "timestamp": hl7_bundle["timestamp"],
-                        "total_entries": len(hl7_bundle["entry"]),
-                        "message_header": hl7_bundle["entry"][0]["resource"]
-                    })
-            
-            data_arquivo = date.today().strftime("%d-%m-%Y")
-            st.download_button(
-                label="📥 Baixar FHIR Bundle Completo (JSON)",
-                data=bundle_json,
-                file_name=f"vigilia_fhir_bundle_{data_arquivo}.json",
-                mime="application/json",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.error(f"Erro ao processar mapeamento FHIR: {e}")
-
     nomes_fontes = {
         "DOU": "Diário Oficial da União",
         "DOE-SC": "Diário Oficial de Santa Catarina",
@@ -387,6 +369,55 @@ Acessar publicação oficial
 </div>
 </div>""",
                 unsafe_allow_html=True,
+            )
+
+    # -------------------------------------------------------------------------
+    # PAINEL FHIR: renderizado APÓS todos os cards, de forma não-bloqueante
+    # -------------------------------------------------------------------------
+    st.markdown("<div style='height: 1.5rem'></div>", unsafe_allow_html=True)
+    with st.expander("🔗 Interoperabilidade de Saúde (FHIR & HL7 v3 / Messaging)"):
+        st.markdown(
+"""<div style="font-size:0.9rem; color:#475569; margin-bottom:0.8rem; line-height:1.7;">
+Esta seção demonstra a interoperabilidade semântica do Vigília.
+Os atos normativos extraídos são estruturados como recursos
+<strong>FHIR DocumentReference</strong> (R4) e encapsulados em um
+<strong>FHIR Message Bundle</strong> (HL7) para futura integração com
+barramentos de saúde do SUS e do PEP municipal.
+A prévia exibe até 50 registros; o arquivo de download contém todos.
+</div>""",
+            unsafe_allow_html=True,
+        )
+        try:
+            fhir_preview, hl7_bundle, bundle_json = _build_fhir_bundle(
+                df.to_json(orient="records", force_ascii=False)
+            )
+            if fhir_preview:
+                col_left, col_right = st.columns(2)
+                with col_left:
+                    st.markdown("##### Exemplo: FHIR DocumentReference (1º Recurso)")
+                    st.json(fhir_preview[0])
+                with col_right:
+                    st.markdown("##### Estrutura: FHIR Message Bundle (HL7)")
+                    st.json({
+                        "resourceType": hl7_bundle["resourceType"],
+                        "id": hl7_bundle["id"],
+                        "type": hl7_bundle["type"],
+                        "timestamp": hl7_bundle["timestamp"],
+                        "total_entries": len(hl7_bundle["entry"]),
+                        "message_header": hl7_bundle["entry"][0]["resource"],
+                    })
+            data_arquivo = date.today().strftime("%d-%m-%Y")
+            st.download_button(
+                label="📥 Baixar FHIR Bundle Completo (JSON)",
+                data=bundle_json,
+                file_name=f"vigilia_fhir_bundle_{data_arquivo}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
+        except Exception as e:
+            st.warning(
+                f"⚠️ Não foi possível gerar o mapeamento FHIR: {e}\n\n"
+                "Os resultados da busca acima não foram afetados."
             )
 
 

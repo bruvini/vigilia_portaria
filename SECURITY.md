@@ -32,3 +32,11 @@ Garantimos um retorno inicial em até 48 horas úteis e trabalharemos para lanç
     pip install pip-audit
     pip-audit
     ```
+
+## 4. Conformidade LGPD e Bundle FHIR
+
+*   **Download Local Apenas:** O Bundle FHIR gerado pelo sistema (arquivo `vigilia_fhir_bundle_DD-MM-YYYY.json`) é disponibilizado **exclusivamente para download local** pelo usuário autenticado. Na versão atual, nenhum dado é enviado automaticamente a servidores externos ou ao endpoint FHIR configurado no `MessageHeader` (`https://pep.joinville.sc.gov.br/fhir-listener`).
+*   **Dados de Domínio Público:** As portarias e atos normativos contidos no Bundle são de domínio público (DOU/DOE-SC). O Bundle FHIR não deve ser distribuído em canais não autorizados caso contenha referências a dados pessoais identificáveis extraídos de portarias de pessoal.
+*   **Minimização de Dados no FHIR:** O mapeamento `to_fhir_document_reference()` utiliza apenas metadados estruturais (título, hierarquia, link, tipo) e o texto da publicação codificado em Base64. Nenhum dado de paciente, CPF ou prontuário é processado.
+*   **Retenção e Descarte:** Arquivos de cache do DOE-SC armazenados em `data/` não contêm dados pessoais — são extratos dos diários oficiais. Devem ser descartados periodicamente conforme política de retenção da SMS Joinville.
+*   **Base Legal LGPD (Lei 13.709/2018):** O processamento se enquadra no Art. 7º, II (cumprimento de obrigação legal) e Art. 7º, III (execução de políticas públicas de saúde), dispensando consentimento explícito para os dados de natureza pública.

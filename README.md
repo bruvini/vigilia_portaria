@@ -42,18 +42,18 @@ vigilia_portaria/
 ├── streamlit_app.py            # Ponto de entrada da aplicação
 ├── requirements.txt            # Dependências do projeto
 ├── GOVERNANCE.md               # Políticas de ramificação, PR e hooks Git
-├── SECURITY.md                 # Políticas de segurança e PII
+├── SECURITY.md                 # Políticas de segurança, PII e LGPD
 ├── verify.py                   # Script de verificação sintática e linter local
 ├── .streamlit/
 │   └── config.toml             # Configuração do tema (Light Mode forçado)
 ├── assets/                     # Imagens e recursos estáticos
 ├── components/                 # Componentes de UI reutilizáveis
-│   ├── hero.py                 # Banner de cabeçalho
+│   ├── hero.py                 # Banner de cabeçalho (CSS separado do HTML base64)
 │   ├── sidebar.py              # Barra lateral de navegação
 │   ├── cards.py                # Cards informativos
 │   └── footer.py               # Rodapé
 ├── pages/
-│   └── home.py                 # Página principal com filtros, orquestração e resultados
+│   └── home.py                 # Página principal: filtros, varredura e resultados
 ├── services/
 │   ├── dou_service.py          # Motor de busca do DOU via Liferay Script
 │   ├── doesc_service.py        # Motor de busca do DOE-SC via API REST CKAN pública
@@ -68,11 +68,11 @@ vigilia_portaria/
 
 ## Fontes de Pesquisa Disponíveis
 
-| Fonte                            | Status             |
-|----------------------------------|--------------------|
-| Diário Oficial da União (DOU)    | Disponível         |
-| Diário Oficial de Santa Catarina (DOE-SC) | Disponível  |
-| Diário Oficial de Joinville      | Em desenvolvimento |
+| Fonte                                     | Status             |
+|-------------------------------------------|--------------------|
+| Diário Oficial da União (DOU)             | Disponível         |
+| Diário Oficial de Santa Catarina (DOE-SC) | Disponível         |
+| Diário Oficial de Joinville               | Em desenvolvimento |
 
 ---
 
@@ -100,7 +100,7 @@ services/dou_service.py
 
 ### Integração via API REST CKAN
 
-O portal de dados abertos de Santa Catarina disponibiliza a base de publicações oficiais estruturada em formato CKAN. Abandonamos o uso do Playwright e da raspagem do portal Angular do DOE-SC para consumir diretamente essa API, garantindo performance e estabilidade.
+O portal de dados abertos de Santa Catarina disponibiliza a base de publicações oficiais estruturada em formato CKAN. A API é consumida diretamente, garantindo performance e estabilidade.
 
 ### Fluxo de Execução (API CKAN + Pandas)
 
@@ -131,21 +131,18 @@ services/doesc_service.py
 
 ```python
 # DOU
-buscar_dou(
+buscar_dou_completo(
     data_publicacao: date,       # Data da edição
     palavras_chave: list[str],   # Termos de filtragem (case-insensitive)
-    secao: str = "do1",          # Seção: do1 | do2 | do3
-    orgao: str = "Ministério da Saúde",
-    tipo_ato: str = "Portaria",
+    operador: str = "OU",        # "OU" | "E"
 ) -> pd.DataFrame
 
 # DOE-SC
-buscar_doesc(
+buscar_doesc_direto(
     data_publicacao: date,       # Data da edição
     palavras_chave: list[str],   # Termos de filtragem (case-insensitive)
+    operador: str = "OU",
 ) -> pd.DataFrame
-# Categorias internas pesquisadas: "Saúde" e "Joinville"
-# Assuntos pesquisados: todos que começam com "PORTARIA"
 ```
 
 ---
@@ -159,19 +156,19 @@ buscar_doesc(
 A interface da Plataforma Vigília foi refatorada e harmonizada seguindo diretrizes visuais unificadas:
 
 1. **Cards Selecionáveis na Barra Lateral (Sidebar)**:
-   - Substituição do seletor multiselect por cards informativos verticais (`st.container(border=True)`) com checkbox de seleção.
-   - Textos explicativos para cada Diário Oficial indicando as regras de varredura executadas pelo robô Vigília.
+   - Cards informativos verticais com checkbox de seleção para cada Diário Oficial.
+   - Textos explicativos para cada Diário indicando as regras de varredura executadas pelo robô Vigília.
 
 2. **Exibição Harmonizada**:
-   - Todo resultado é renderizado em um card padronizado (`st.container(border=True)`).
-   - Metadados exibidos no cabeçalho: Hierarquia da publicação, data e um badge colorido que indica a origem (DOU, DOE-SC, etc.).
+   - Todo resultado é renderizado em um card padronizado com estilo consistente.
+   - Metadados exibidos no cabeçalho: Hierarquia da publicação, data e badge colorido indicando a origem (DOU, DOE-SC, etc.).
 
 3. **Links e Texto Integral**:
    - **Diário Oficial da União (DOU)**: Título clicável com link externo de redirecionamento.
-   - **Diário Oficial de Santa Catarina (DOE-SC)**: Texto integral ocultado por padrão e exibido sob demanda através de um componente expansível (`st.expander`), mantendo o layout limpo e legível.
+   - **Diário Oficial de Santa Catarina (DOE-SC)**: Texto integral exibido diretamente no card.
 
 4. **Identificação de Município**:
-   - Varredura de texto simples no ato da renderização dos resultados do DOE-SC. Se houver menção à cidade de **Joinville**, um badge estilizado azul destacado é adicionado ao lado do título: `📍 Município: Joinville`.
+   - Badge estilizado é adicionado quando há menção à cidade de **Joinville** nos resultados.
 
 ---
 
@@ -194,22 +191,63 @@ Para garantir que a plataforma atenda aos requisitos de integração e saúde di
 
 ---
 
+## Arquitetura de UI Não-Bloqueante (2026)
+
+A partir da versão atual, o processamento FHIR **não bloqueia** mais a renderização dos resultados da busca:
+
+### Ordem de Renderização em `pages/home.py`
+
+```
+render_home()
+  └── _render_intro()          # Hero institucional
+  └── _render_filtros()        # Painel de filtros
+  └── _executar_varredura()    # Busca DOU + DOE-SC (com st.status())
+  └── _render_resultados()
+        ├── Cabeçalho + contador de resultados
+        ├── Cards de resultado (renderizados IMEDIATAMENTE)
+        └── Expander FHIR (ao final, não-bloqueante)
+              └── _build_fhir_bundle()  # @st.cache_data
+```
+
+### Função `_build_fhir_bundle()` com Cache
+
+```python
+@st.cache_data(show_spinner=False)
+def _build_fhir_bundle(df_json: str) -> tuple[list, dict, str]:
+    """
+    Constrói FHIR Bundle com cache por DataFrame.
+    - Prévia: primeiros 50 registros (exibido nos JSONs interativos)
+    - Download: Bundle completo com todos os registros
+    - Re-renders do Streamlit não reprocessam o Bundle se os dados não mudaram
+    """
+```
+
+### Garantia de Isolamento FHIR
+
+O `st.expander` FHIR é renderizado **após** todos os cards de resultado. Qualquer falha no processamento FHIR é capturada por um bloco `try-except` e exibida como `st.warning()` — **nunca bloqueando ou ocultando os resultados da busca**.
+
+---
+
 ## Diretrizes de Desenvolvimento e Interface
 
 ### Correção de Renderização de HTML/CSS (Streamlit Markdown)
-Ao injetar elementos HTML ou estilos CSS na interface utilizando `st.markdown(..., unsafe_allow_html=True)`, o parser de Markdown do Streamlit interpreta qualquer recuo de 4 ou mais espaços (indentação comum em blocos Python, como funções e condicionais) como uma instrução para renderizar texto literal (`<pre><code>`), quebrando o layout visual.
 
-Para evitar essa regressão de layout:
-1. **Achatamento Total (Recomendado)**: Remova qualquer indentação e alinhe todas as linhas dentro das strings multilinha HTML/CSS/SVG diretamente na margem esquerda (0 espaços de recuo). Essa é a abordagem mais robusta e segura.
-2. **Cuidado com Interpolação e `textwrap.dedent`**: Se você usar `textwrap.dedent(...)`, saiba que se qualquer string interpolada (como um ícone SVG ou imagem base64) contiver linhas com 0 espaços, o prefixo comum calculado será `0`. Isso fará com que `textwrap.dedent` não remova espaço algum da string principal, mantendo a indentação e quebrando a renderização.
-3. **Exemplo prático de Achatamento**:
-   ```python
-   import streamlit as st
+Ao injetar elementos HTML ou estilos CSS na interface utilizando `st.markdown(..., unsafe_allow_html=True)`, o parser de Markdown do Streamlit interpreta qualquer recuo de 4 ou mais espaços como uma instrução para renderizar texto literal (`<pre><code>`), quebrando o layout visual.
 
-   def render_componente():
-       st.markdown("""<div class="custom-card">
-<h3>Título do Card</h3>
-<p>Descrição do componente com estilos aplicados.</p>
+**Regra obrigatória**: Utilizar `textwrap.dedent()` em **todas** as strings multilinha HTML/CSS injetadas dentro de funções/condicionais Python. Para f-strings com interpolação de dados variáveis (como base64), usar string achatada (0 espaços de recuo) em chamada separada de `st.markdown()`.
+
+```python
+# ✅ CORRETO — CSS com dedent
+st.markdown(textwrap.dedent("""\
+    <style>
+    .meu-card { padding: 1rem; }
+    </style>"""), unsafe_allow_html=True)
+
+# ✅ CORRETO — HTML com dado variável em string achatada
+st.markdown(
+f"""<div class="meu-card">
+<img src="data:image/png;base64,{base64_data}">
 </div>""", unsafe_allow_html=True)
-   ```
-4. Essa diretriz deve ser estritamente seguida em todas as views e componentes da aplicação (`pages/home.py`, `components/hero.py`, `components/cards.py`, `components/footer.py`, `components/sidebar.py`).
+```
+
+Essa diretriz deve ser estritamente seguida em todas as views e componentes da aplicação.
