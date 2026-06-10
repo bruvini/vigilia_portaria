@@ -166,3 +166,15 @@ cython_debug/
 # Cache de dados do Diário Oficial
 data/publicacoes_*
 scratch/
+
+# Configuração local de ferramentas
+.claude/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+functions/venv/
+node_modules/
+# Artefato de preview do dev_server
+public/relatorio_preview.html

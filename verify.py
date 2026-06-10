@@ -51,7 +51,10 @@ def main():
     python_files = []
     other_files = []
     
-    exclude_dirs = [".git", ".venv", "__pycache__", "dom_screenshots", ".devcontainer"]
+    exclude_dirs = [
+        ".git", ".venv", "venv", "__pycache__", ".devcontainer",
+        "node_modules", ".firebase", "scratch",
+    ]
     
     for root, dirs, files in os.walk(root_dir):
         # Ignorar pastas desnecessárias

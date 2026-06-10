@@ -68,11 +68,12 @@ fi
 
 ## 5. Proteção dos Serviços de Saúde Interoperáveis
 
-Os arquivos `services/fhir_service.py` (FHIR R4, HL7 e SNOMED CT) são **componentes protegidos** da arquitetura institucional:
+O módulo `functions/vigilia_core/fhir.py` (FHIR R4, HL7 e SNOMED CT) é **componente protegido** da arquitetura institucional:
 
 *   **Proibição de Remoção:** É estritamente proibido remover, desativar ou comentar as funções `to_fhir_document_reference()`, `create_hl7_fhir_message_bundle()` ou qualquer referência a códigos SNOMED CT.
-*   **Isolamento na UI:** Alterações na camada de apresentação (`pages/home.py`) devem garantir que o processamento FHIR seja sempre envolvido por `try-except` e executado **após** a renderização dos cards de resultado.
-*   **Cache Obrigatório:** O cálculo do Bundle FHIR deve utilizar `@st.cache_data` para evitar reprocessamento desnecessário em re-renders do Streamlit.
+*   **Isolamento na UI:** Alterações nas camadas de apresentação (`views/home.py` no Streamlit e `public/app.js` na SPA) devem garantir que o processamento FHIR seja sempre envolvido por tratamento de erro e executado **após** a renderização dos cards de resultado.
+*   **Cache Obrigatório (Streamlit):** O cálculo do Bundle FHIR em `views/home.py` deve utilizar `@st.cache_data` para evitar reprocessamento desnecessário em re-renders.
+*   **Cobertura de Testes:** Alterações no mapeamento FHIR devem manter `tests/test_fhir.py` passando (IDs UUID válidos e determinísticos, MessageHeader como primeiro entry, `fullUrl` no formato `urn:uuid:`).
 
 ## 6. Regra de Renderização HTML/CSS no Streamlit
 
