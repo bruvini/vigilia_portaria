@@ -51,13 +51,13 @@
         <span class="panel-line"></span>
       </div>
 
-      <div class="desk-grid">
+      <div class="desk-top">
         <div class="field">
           <label class="field-label" for="inp-data">Edição de</label>
           <input type="date" id="inp-data" class="input-date">
         </div>
 
-        <div class="field field-keywords">
+        <div class="field">
           <label class="field-label" for="inp-palavra">
             Palavras-chave
             <span class="field-hint" id="hint-origem-config" hidden>· carregadas da configuração</span>
@@ -67,8 +67,10 @@
                    placeholder="Digite um termo e pressione Enter…" autocomplete="off">
           </div>
         </div>
+      </div>
 
-        <div class="field">
+      <div class="desk-controls">
+        <div class="control-block">
           <span class="field-label">Operador lógico</span>
           <div class="segmented" role="radiogroup" aria-label="Operador lógico">
             <button type="button" class="seg-btn is-active" data-op="OU" role="radio" aria-checked="true">
@@ -80,7 +82,7 @@
           </div>
         </div>
 
-        <div class="field">
+        <div class="control-block">
           <span class="field-label">Fontes monitoradas</span>
           <div class="stamps">
             <label class="stamp stamp-dou">
@@ -91,9 +93,6 @@
               <input type="checkbox" id="chk-doesc" checked>
               <span class="stamp-face">DOE-SC<small>Santa Catarina</small></span>
             </label>
-            <span class="stamp stamp-soon" title="Integração municipal em desenvolvimento">
-              <span class="stamp-face">DOE-JOI<small>Em breve</small></span>
-            </span>
           </div>
         </div>
       </div>
@@ -103,21 +102,26 @@
           <span class="btn-label">Iniciar varredura</span>
           <span class="btn-arrow">→</span>
         </button>
-        <button type="button" class="btn-ghost" id="btn-config-toggle" aria-expanded="false">
-          Configurações
+        <button type="button" class="btn-ghost" id="btn-config-toggle" aria-expanded="false" aria-haspopup="dialog">
+          <span class="gear" aria-hidden="true">⚙</span> Configurações
         </button>
       </div>
     </div>
   </section>
 
-  <!-- ==================================================== CONFIGURAÇÃO -->
-  <section class="config reveal" id="sec-config" hidden aria-labelledby="config-title">
-    <div class="panel panel-config">
-      <div class="panel-head">
-        <span class="panel-num">02</span>
-        <h3 class="panel-title" id="config-title">Configuração Permanente</h3>
-        <span class="panel-line"></span>
-      </div>
+  <!-- ==================================================== CONFIGURAÇÃO (modal) -->
+  <div class="modal-backdrop" id="modal-config" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="config-title">
+      <div class="panel panel-config">
+        <div class="modal-head">
+          <div>
+            <h3 class="panel-title" id="config-title">
+              <span class="gear" aria-hidden="true">⚙</span> Configuração Permanente
+            </h3>
+            <p class="modal-subtitle">Ajustes que valem para todas as varreduras — você mexe aqui de vez em quando.</p>
+          </div>
+          <button type="button" class="modal-close" id="btn-config-close" aria-label="Fechar configurações">×</button>
+        </div>
 
       <div class="config-grid">
         <div class="config-block">
@@ -169,8 +173,9 @@
         </div>
       </div>
       <p class="config-status" id="config-status" role="status"></p>
+      </div>
     </div>
-  </section>
+  </div>
 
   <!-- ==================================================== ESTADO DA BUSCA -->
   <section class="telex reveal-late" id="sec-telex" hidden aria-live="polite">
@@ -181,7 +186,7 @@
   <!-- ==================================================== RESULTADOS -->
   <section class="results" id="sec-resultados" hidden aria-labelledby="res-title">
     <div class="panel-head">
-      <span class="panel-num">03</span>
+      <span class="panel-num">02</span>
       <h3 class="panel-title" id="res-title">Resultados da Varredura</h3>
       <span class="panel-line"></span>
     </div>

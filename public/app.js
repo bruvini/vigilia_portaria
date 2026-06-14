@@ -538,11 +538,25 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-salvar-relatorio").addEventListener("click", salvarRelatorio);
   $("#btn-testar-email").addEventListener("click", testarEmail);
 
-  $("#btn-config-toggle").addEventListener("click", () => {
-    const sec = $("#sec-config");
-    sec.hidden = !sec.hidden;
-    $("#btn-config-toggle").setAttribute("aria-expanded", String(!sec.hidden));
-    if (!sec.hidden) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Modal de configuração (engrenagem) — fora do fluxo da página
+  const modalConfig = $("#modal-config");
+  const abrirConfig = () => {
+    modalConfig.hidden = false;
+    document.body.classList.add("modal-aberto");
+    $("#btn-config-toggle").setAttribute("aria-expanded", "true");
+  };
+  const fecharConfig = () => {
+    modalConfig.hidden = true;
+    document.body.classList.remove("modal-aberto");
+    $("#btn-config-toggle").setAttribute("aria-expanded", "false");
+  };
+  $("#btn-config-toggle").addEventListener("click", abrirConfig);
+  $("#btn-config-close").addEventListener("click", fecharConfig);
+  modalConfig.addEventListener("click", (e) => {
+    if (e.target === modalConfig) fecharConfig();  // clique no backdrop
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !modalConfig.hidden) fecharConfig();
   });
 
   carregarConfig();
