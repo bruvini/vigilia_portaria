@@ -95,16 +95,24 @@ def test_enviar_email_sem_destinatario_valido():
 
 # ----------------------------------------------------------------- relatório
 
-def test_relatorio_com_resumo_ia_renderiza_bloco():
+def test_relatorio_com_resumo_ia_renderiza_markdown():
+    md = (
+        "✦ **Vigília IA · Análise de Impacto**\n"
+        "## 📊 Panorama do Dia\n"
+        "* 🟡 **Volume:** 1 publicação.\n"
+        "* **Foco Principal:** repasse para Joinville."
+    )
     _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"], "OU",
-                                    resumo_ia="Há um repasse relevante para Joinville.")
-    assert "Síntese por Inteligência Artificial" in corpo
-    assert "repasse relevante para Joinville" in corpo
+                                    resumo_ia=md)
+    assert "Panorama do Dia" in corpo            # heading ## renderizado
+    assert "<strong>Volume:</strong>" in corpo   # **negrito** → <strong>
+    assert "Vigília IA" in corpo                  # banner ✦
+    assert "Resumo gerado" in corpo               # rodapé do bloco de IA
 
 
 def test_relatorio_sem_resumo_ia_omite_bloco():
     _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"], "OU")
-    assert "Síntese por Inteligência Artificial" not in corpo
+    assert "Resumo gerado" not in corpo           # bloco de IA ausente
 
 
 def test_relatorio_escapa_xss_no_email():
@@ -128,22 +136,21 @@ def test_ia_disponivel_com_key():
         assert ia.resumo_disponivel() is True
 
 
-def test_ia_prompt_inclui_publicacoes():
-    prompt = ia._montar_prompt([_ato()], "09/06/2026", ["saúde"])
-    assert "PORTARIA X" in prompt
-    assert "saúde" in prompt
-    assert "Joinville" in prompt
+def test_ia_prompt_inclui_publicacoes_e_total():
+    prompt = ia._montar_prompt([_ato(), _ato("DOE-SC")], "09/06/2026", ["saúde"])
+    assert "PORTARIA X" in prompt                              # publicação
+    assert "saúde" in prompt                                   # termo monitorado
+    assert "TOTAL DE PUBLICAÇÕES ENCONTRADAS: 2" in prompt     # contagem
+    assert "use o total real de 2" in prompt
 
 
-def test_ia_prompt_menciona_total():
-    """O prompt deve informar quantas publicações foram encontradas."""
-    prompt = ia._montar_prompt([_ato(), _ato("DOE-SC")], "09/06/2026", [])
-    assert "TOTAL DE PUBLICAÇÕES ENCONTRADAS: 2" in prompt
-    # e instrui o modelo a abrir o PANORAMA com a contagem
-    assert "PANORAMA" in prompt and "quantas publicações" in prompt
-
-
-def test_ia_prompt_estrutura_rotulos():
-    prompt = ia._montar_prompt([_ato()], "09/06/2026", ["saúde"])
-    for rotulo in ("PANORAMA", "DESTAQUES PARA JOINVILLE", "RECOMENDAÇÃO"):
-        assert rotulo in prompt
+def test_ia_system_instruction_template_e_restricao():
+    si = ia.SYSTEM_INSTRUCTION
+    # seções do template
+    for secao in ("Panorama do Dia", "Atos de Alto Impacto", "Próximos Passos"):
+        assert secao in si
+    assert "Vigília IA" in si
+    # regra de restrição absoluta (quando nada relevante)
+    assert "Nenhuma publicação de alto impacto" in si
+    # regra de não inventar valores
+    assert "valor sob consulta nos anexos do ato" in si

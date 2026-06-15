@@ -39,7 +39,7 @@ from firebase_functions import https_fn, options, scheduler_fn
 from firebase_functions.params import SecretParam
 
 from vigilia_core import config_padrao, ia
-from vigilia_core.datas import dia_util_anterior
+from vigilia_core.datas import dia_util_anterior, hora_de_horario
 from vigilia_core.dou import buscar_dou_completo
 from vigilia_core.doesc import buscar_doesc
 from vigilia_core.email_sender import (
@@ -376,7 +376,7 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
         resumo = _montar_e_enviar_relatorio(
             db, destinatarios, data_pub,
             cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
-            cfg_v.get("operador", config_padrao.OPERADOR_PADRAO),
+            "E",  # o relatório por e-mail SEMPRE usa o operador E (todos os termos)
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
             usar_ia=usar_ia,
         )
@@ -401,8 +401,11 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
 # Função agendada: relatório diário por e-mail
 # ---------------------------------------------------------------------------
 
+# A função roda DE HORA EM HORA (seg-sex) e só envia na hora configurada pelo
+# usuário (config/relatorio.horario). Isso torna o horário ajustável pela
+# interface sem precisar de novo deploy.
 @scheduler_fn.on_schedule(
-    schedule="0 7 * * 1-5",
+    schedule="0 * * * 1-5",
     timezone=scheduler_fn.Timezone("America/Sao_Paulo"),
     region=REGIAO,
     memory=options.MemoryOption.MB_512,
@@ -424,17 +427,31 @@ def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
         logger.warning("Relatório ativo, mas sem destinatários. Abortando.")
         return
 
-    # Às 07h a edição do próprio dia ainda não foi publicada — usa o dia útil
+    agora_sp = datetime.now(ZoneInfo("America/Sao_Paulo"))
+    hora_alvo = hora_de_horario(cfg_r.get("horario", "07:00"))
+    if agora_sp.hour != hora_alvo:
+        logger.info("Hora atual %dh ≠ horário configurado %dh — aguardando.",
+                    agora_sp.hour, hora_alvo)
+        return
+
+    # Guarda contra reenvio no mesmo dia (caso a função seja reexecutada).
+    if cfg_r.get("ultimo_envio") == agora_sp.date().isoformat():
+        logger.info("Relatório já enviado hoje. Nada a fazer.")
+        return
+
+    # No horário de envio, a edição do dia ainda não saiu — usa o dia útil
     # anterior (pula fins de semana e feriados fixos).
-    hoje_sp = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
-    data_ref = dia_util_anterior(hoje_sp)
+    data_ref = dia_util_anterior(agora_sp.date())
     try:
         resumo = _montar_e_enviar_relatorio(
             db, destinatarios, data_ref,
             cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
-            cfg_v.get("operador", config_padrao.OPERADOR_PADRAO),
+            "E",  # o relatório por e-mail SEMPRE usa o operador E (todos os termos)
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
             usar_ia=bool(cfg_r.get("resumo_ia", False)),
+        )
+        db.collection("config").document("relatorio").set(
+            {"ultimo_envio": agora_sp.date().isoformat()}, merge=True
         )
         logger.info(
             "Relatório da edição de %s enviado: %d publicações para %d destinatário(s).",

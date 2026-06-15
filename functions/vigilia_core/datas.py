@@ -34,6 +34,14 @@ def _e_dia_util(d: date) -> bool:
     return True
 
 
+def hora_de_horario(horario: str) -> int:
+    """Extrai a hora (0-23) de uma string 'HH:MM'. Padrão 7 se inválida."""
+    try:
+        return max(0, min(23, int(str(horario).split(":")[0])))
+    except (ValueError, IndexError):
+        return 7
+
+
 def dia_util_anterior(referencia: date) -> date:
     """
     Retorna o dia útil imediatamente anterior à `referencia`.

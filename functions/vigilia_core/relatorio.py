@@ -16,6 +16,7 @@ fornecido (preparado para integração futura com o Google AI Studio / Gemini).
 from __future__ import annotations
 
 import html
+import re
 from datetime import date
 
 NOMES_FONTES = {
@@ -175,14 +176,23 @@ def gerar_relatorio_html(
     return assunto, corpo
 
 
-_ROTULOS_IA = ("PANORAMA", "DESTAQUES PARA JOINVILLE", "DESTAQUES", "RECOMENDAÇÃO")
+_RE_NEGRITO = re.compile(r"\*\*(.+?)\*\*")
+_RE_ITALICO = re.compile(r"\*(.+?)\*")
+
+
+def _inline_md(texto: str) -> str:
+    """Escapa o texto e aplica negrito (**), itálico (*) e checkbox (▢)."""
+    seguro = _e(texto)
+    seguro = _RE_NEGRITO.sub(r"<strong>\1</strong>", seguro)
+    seguro = _RE_ITALICO.sub(r"<em>\1</em>", seguro)
+    return seguro
 
 
 def _bloco_resumo_ia(resumo: str) -> str:
     """
-    Bloco de síntese por IA. Reconhece os rótulos estruturados do prompt
-    (PANORAMA / DESTAQUES / RECOMENDAÇÃO) e os formata como subtítulos; trata
-    linhas iniciadas por '•' como itens de lista.
+    Renderiza a síntese da IA (Markdown) como HTML para e-mail.
+    Suporta: '## ' (seção), '### ' (subtítulo), '* ' (lista, inclusive com '▢'),
+    '✦ ' (banner) e formatação inline **negrito** / *itálico*.
     """
     corpo = []
     for linha_bruta in str(resumo).split("\n"):
@@ -190,35 +200,36 @@ def _bloco_resumo_ia(resumo: str) -> str:
         if not linha:
             continue
 
-        rotulo = next(
-            (r for r in _ROTULOS_IA
-             if linha.upper().startswith(r) and (
-                 len(linha) == len(r) or linha[len(r):len(r) + 2] in (":", " :", ": ")
-                 or linha[len(r)] == ":")),
-            None,
-        )
-        if rotulo:
-            texto = linha[len(rotulo):].lstrip(": ").strip()
+        if linha.startswith("## "):
             corpo.append(
-                f"<div style='font-family:Arial,sans-serif;font-size:10px;font-weight:bold;"
-                f"letter-spacing:1.5px;text-transform:uppercase;color:{_AZUL_FUNDO};"
-                f"margin:12px 0 4px 0;'>{_e(rotulo)}</div>"
+                f"<div style='font-family:Arial,sans-serif;font-size:14px;font-weight:bold;"
+                f"color:{_TINTA};border-bottom:1px solid #bae6fd;padding-bottom:5px;"
+                f"margin:16px 0 8px 0;'>{_inline_md(linha[3:].strip())}</div>"
             )
-            if texto:
-                corpo.append(
-                    f"<p style='margin:0 0 6px 0;'>{_e(texto)}</p>"
-                )
-        elif linha.startswith(("•", "-", "*")):
-            item = linha.lstrip("•-* ").strip()
+        elif linha.startswith("### "):
             corpo.append(
-                f"<table role='presentation' cellpadding='0' cellspacing='0' style='margin:0 0 6px 0;'>"
-                f"<tr><td style='color:{_AZUL};font-size:14px;vertical-align:top;"
-                f"padding-right:8px;line-height:1.5;'>&#9656;</td>"
-                f"<td style='font-family:Georgia,serif;font-size:14px;color:{_TINTA};"
-                f"line-height:1.6;'>{_e(item)}</td></tr></table>"
+                f"<div style='font-family:Arial,sans-serif;font-size:13px;font-weight:bold;"
+                f"color:{_AZUL_FUNDO};margin:12px 0 4px 0;'>{_inline_md(linha[4:].strip())}</div>"
+            )
+        elif linha.startswith("✦"):
+            corpo.append(
+                f"<div style='font-family:Arial,sans-serif;font-size:13px;font-weight:bold;"
+                f"color:{_AZUL_FUNDO};letter-spacing:0.5px;margin:0 0 10px 0;'>"
+                f"{_inline_md(linha)}</div>"
+            )
+        elif linha.startswith(("* ", "- ", "• ")):
+            # os itens da IA já começam com um emoji/▢ semântico — não adicionamos
+            # marcador extra, apenas recuo.
+            item = linha[2:].strip()
+            corpo.append(
+                f"<div style='font-family:Arial,sans-serif;font-size:13px;color:{_TINTA};"
+                f"line-height:1.6;margin:0 0 5px 0;padding-left:14px;'>{_inline_md(item)}</div>"
             )
         else:
-            corpo.append(f"<p style='margin:0 0 8px 0;'>{_e(linha)}</p>")
+            corpo.append(
+                f"<p style='font-family:Arial,sans-serif;font-size:13px;color:{_TINTA};"
+                f"line-height:1.6;margin:0 0 6px 0;'>{_inline_md(linha)}</p>"
+            )
 
     return f"""
   <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
@@ -227,11 +238,7 @@ def _bloco_resumo_ia(resumo: str) -> str:
            style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;">
       <tr><td style="height:4px;background:{_AZUL};line-height:4px;font-size:0;">&nbsp;</td></tr>
       <tr><td style="padding:16px 22px 18px 22px;">
-        <div style="font-family:Arial,sans-serif;font-size:11px;font-weight:bold;
-             letter-spacing:2px;text-transform:uppercase;color:{_AZUL_FUNDO};margin-bottom:4px;">
-          &#10022; Síntese por Inteligência Artificial
-        </div>
-        <div style="font-family:Georgia,serif;font-size:14px;color:{_TINTA};line-height:1.7;">
+        <div style="color:{_TINTA};line-height:1.7;">
           {''.join(corpo)}
         </div>
         <div style="font-family:Arial,sans-serif;font-size:10px;color:#94a3b8;

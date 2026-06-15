@@ -188,6 +188,7 @@ async function carregarConfig() {
     $("#chk-relatorio-ativo").checked = !!r.ativo;
     $("#chk-resumo-ia").checked = !!r.resumo_ia;
     chipsEmails.set(r.destinatarios || []);
+    $("#sel-horario").value = _horaCheia(r.horario || "07:00");
     $("#hint-origem-config").hidden = !(v.palavras_chave || []).length;
   } catch (e) {
     console.warn("Configuração indisponível (API offline?):", e.message);
@@ -224,11 +225,17 @@ async function salvarConfig() {
   }
 }
 
+function _horaCheia(horario) {
+  const h = parseInt(String(horario).split(":")[0], 10);
+  return `${String(isNaN(h) ? 7 : h).padStart(2, "0")}:00`;
+}
+
 function coletarRelatorio() {
   return {
     ativo: $("#chk-relatorio-ativo").checked,
     destinatarios: chipsEmails.get(),
     resumo_ia: $("#chk-resumo-ia").checked,
+    horario: $("#sel-horario").value || "07:00",
   };
 }
 
@@ -291,11 +298,74 @@ document.querySelectorAll(".seg-btn").forEach((btn) => {
 
 /* ------------------------------------------------------------------- busca */
 
+/* ----------------------------------------------------------------- loader */
+
+const FRASES_BUSCA = [
+  "Abrindo a edição do Diário Oficial…",
+  "Garimpando portarias, decretos e atos…",
+  "Cruzando as publicações com as palavras-chave…",
+  "Separando o que interessa para Joinville…",
+];
+const FRASES_IA = [
+  "Acionando a inteligência do Vigília…",
+  "Lendo os atos e medindo o impacto…",
+  "Destacando repasses, prazos e habilitações…",
+  "Montando a análise executiva…",
+];
+
+let _loaderTimer = null;
+let _loaderFrases = FRASES_BUSCA;
+let _loaderIdx = 0;
+
+function _trocarFrase() {
+  const el = $("#loader-frase");
+  el.style.opacity = "0";
+  setTimeout(() => {
+    _loaderIdx = (_loaderIdx + 1) % _loaderFrases.length;
+    el.textContent = _loaderFrases[_loaderIdx];
+    el.style.opacity = "1";
+  }, 220);
+}
+
+function iniciarLoader(dataBR) {
+  const sec = $("#sec-telex");
+  sec.hidden = false;
+  sec.classList.remove("loader-erro");
+  $("#loader-titulo").textContent = `Varrendo a edição de ${dataBR}`;
+  _loaderFrases = FRASES_BUSCA;
+  _loaderIdx = 0;
+  $("#loader-frase").style.opacity = "1";
+  $("#loader-frase").textContent = _loaderFrases[0];
+  clearInterval(_loaderTimer);
+  _loaderTimer = setInterval(_trocarFrase, 2400);
+}
+
+function loaderFaseIA() {
+  $("#loader-titulo").textContent = "Gerando a síntese inteligente…";
+  _loaderFrases = FRASES_IA;
+  _loaderIdx = 0;
+  $("#loader-frase").textContent = _loaderFrases[0];
+}
+
+function pararLoader() {
+  clearInterval(_loaderTimer);
+  _loaderTimer = null;
+  $("#sec-telex").hidden = true;
+}
+
+function loaderErro(msg) {
+  clearInterval(_loaderTimer);
+  _loaderTimer = null;
+  const sec = $("#sec-telex");
+  sec.classList.add("loader-erro");
+  $("#loader-titulo").textContent = "Não foi possível concluir a varredura";
+  $("#loader-frase").textContent = msg;
+}
+
+/* ------------------------------------------------------------------- busca */
+
 async function executarVarredura() {
   const btn = $("#btn-buscar");
-  const telex = $("#sec-telex");
-  const linha1 = $("#telex-linha-1");
-  const linha2 = $("#telex-linha-2");
 
   const fontes = { dou: $("#chk-dou").checked, doesc: $("#chk-doesc").checked };
   if (!fontes.dou && !fontes.doesc) {
@@ -318,69 +388,56 @@ async function executarVarredura() {
   $("#sec-resultados").hidden = true;
   $("#sec-vazio").hidden = true;
   $("#sintese-ia").hidden = true;
-  telex.hidden = false;
-  linha1.textContent = `> VARRENDO EDIÇÃO DE ${isoParaBR(dataISO)} · OPERADOR ${estado.operador}`;
-  linha1.classList.add("is-active");
-  linha2.textContent = [
-    fontes.dou ? "DOU (SEÇÕES 1, 2 E 3)" : null,
-    fontes.doesc ? "DOE-SC" : null,
-  ].filter(Boolean).join(" + ") + " …";
+  iniciarLoader(isoParaBR(dataISO));
 
+  let resposta;
   try {
-    const resposta = await chamarAPI("/buscar", {
+    resposta = await chamarAPI("/buscar", {
       method: "POST",
       body: JSON.stringify({ data: dataISO, palavras, operador: estado.operador, fontes }),
     });
-    estado.resultados = resposta.resultados || [];
-    estado.palavrasBusca = palavras;
-    renderizarResultados(resposta);
-    carregarSintese({ data: dataISO, palavras, operador: estado.operador, fontes });
   } catch (e) {
-    linha2.textContent = `ERRO: ${e.message}`;
-    linha1.classList.remove("is-active");
+    loaderErro(e.message);
     btn.disabled = false;
     return;
   }
 
-  telex.hidden = true;
-  linha1.classList.remove("is-active");
+  estado.resultados = resposta.resultados || [];
+  estado.palavrasBusca = palavras;
+
+  const params = { data: dataISO, palavras, operador: estado.operador, fontes };
+  const iaAtiva = !!estado.configCarregada?.relatorio?.resumo_ia && estado.resultados.length > 0;
+
+  // Com IA ligada, os resultados só aparecem QUANDO a síntese estiver pronta
+  // (o loader segue rodando com frases de efeito). Se a IA falhar/sem cota,
+  // mostramos os resultados mesmo assim.
+  let sintese = null;
+  if (iaAtiva) {
+    loaderFaseIA();
+    sintese = await obterSintese(params);
+  }
+
+  pararLoader();
+  renderizarResultados(resposta);
+  if (sintese) {
+    renderizarSintese(sintese);
+  } else {
+    $("#sintese-ia").hidden = true;
+  }
   btn.disabled = false;
 }
 
 /* --------------------------------------------------------- síntese por IA */
 
-const ROTULOS_SINTESE = ["PANORAMA", "DESTAQUES PARA JOINVILLE", "DESTAQUES", "RECOMENDAÇÃO"];
-
-async function carregarSintese(params) {
-  const painel = $("#sintese-ia");
-  const ativa = estado.configCarregada?.relatorio?.resumo_ia;
-  if (!ativa || !estado.resultados.length) {
-    painel.hidden = true;
-    return;
-  }
-
+// Obtém a síntese (cache local → API). Nunca lança: devolve o texto ou null.
+async function obterSintese(params) {
   const assinatura = JSON.stringify({
     data: params.data,
     palavras: [...params.palavras].sort(),
     operador: params.operador,
     fontes: params.fontes,
   });
-  if (estado.sinteseCache[assinatura]) {
-    renderizarSintese(estado.sinteseCache[assinatura]);
-    return;
-  }
-
-  // estado de carregamento
-  painel.hidden = false;
-  painel.className = "sintese-ia is-loading";
-  painel.textContent = "";
-  const cab = document.createElement("div");
-  cab.className = "sintese-cab";
-  cab.textContent = "✦ Síntese por IA";
-  const load = document.createElement("div");
-  load.className = "sintese-loading";
-  load.textContent = "Analisando as publicações e gerando o resumo…";
-  painel.append(cab, load);
+  if (estado.sinteseCache[assinatura]) return estado.sinteseCache[assinatura];
 
   try {
     const resp = await chamarAPI("/sintese", {
@@ -389,26 +446,33 @@ async function carregarSintese(params) {
     });
     if (resp.sintese) {
       estado.sinteseCache[assinatura] = resp.sintese;
-      renderizarSintese(resp.sintese);
-    } else {
-      painel.hidden = true;  // IA indisponível ou sem resultados
+      return resp.sintese;
     }
+    return null;
   } catch (e) {
-    painel.hidden = true;
     console.warn("Síntese por IA indisponível:", e.message);
+    return null;
   }
 }
 
+// Escapa HTML e aplica formatação inline do Markdown (**negrito**, *itálico*).
+// Como o texto é escapado antes, as únicas tags inseridas são as nossas.
+function _esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function _inlineMd(s) {
+  return _esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+// Renderiza a síntese (Markdown: ## , ### , ✦ , * , **negrito**, *itálico*).
 function renderizarSintese(texto) {
   const painel = $("#sintese-ia");
   painel.hidden = false;
   painel.className = "sintese-ia";
   painel.textContent = "";
-
-  const cab = document.createElement("div");
-  cab.className = "sintese-cab";
-  cab.textContent = "✦ Síntese por IA";
-  painel.appendChild(cab);
 
   const corpo = document.createElement("div");
   corpo.className = "sintese-corpo";
@@ -417,39 +481,30 @@ function renderizarSintese(texto) {
     const linha = linhaBruta.trim();
     if (!linha) continue;
 
-    const rotulo = ROTULOS_SINTESE.find(
-      (r) => linha.toUpperCase().startsWith(r) &&
-             (linha.length === r.length || /^[:\s]/.test(linha.slice(r.length)))
-    );
-
-    if (rotulo) {
-      const h = document.createElement("div");
-      h.className = "sintese-rotulo";
-      h.textContent = rotulo;
-      corpo.appendChild(h);
-      const resto = linha.slice(rotulo.length).replace(/^[:\s]+/, "").trim();
-      if (resto) {
-        const p = document.createElement("p");
-        p.className = "sintese-p";
-        p.textContent = resto;
-        corpo.appendChild(p);
-      }
-    } else if (/^[•\-*]/.test(linha)) {
-      const item = document.createElement("div");
-      item.className = "sintese-item";
-      const marca = document.createElement("span");
-      marca.className = "sintese-bullet";
-      marca.textContent = "▸";
-      const txt = document.createElement("span");
-      txt.textContent = linha.replace(/^[•\-*]\s*/, "");
-      item.append(marca, txt);
-      corpo.appendChild(item);
+    let el;
+    if (linha.startsWith("## ")) {
+      el = document.createElement("div");
+      el.className = "sintese-h2";
+      el.innerHTML = _inlineMd(linha.slice(3).trim());
+    } else if (linha.startsWith("### ")) {
+      el = document.createElement("div");
+      el.className = "sintese-h3";
+      el.innerHTML = _inlineMd(linha.slice(4).trim());
+    } else if (linha.startsWith("✦")) {
+      el = document.createElement("div");
+      el.className = "sintese-banner";
+      el.innerHTML = _inlineMd(linha);
+    } else if (/^[*\-•]\s/.test(linha)) {
+      // os itens já começam com emoji/▢ semântico — só recuamos, sem marcador extra
+      el = document.createElement("div");
+      el.className = "sintese-item";
+      el.innerHTML = _inlineMd(linha.replace(/^[*\-•]\s+/, ""));
     } else {
-      const p = document.createElement("p");
-      p.className = "sintese-p";
-      p.textContent = linha;
-      corpo.appendChild(p);
+      el = document.createElement("p");
+      el.className = "sintese-p";
+      el.innerHTML = _inlineMd(linha);
     }
+    corpo.appendChild(el);
   }
 
   const rodape = document.createElement("div");
@@ -668,9 +723,23 @@ async function baixarFHIR() {
 
 /* ------------------------------------------------------------------ início */
 
+function popularHorarios() {
+  const sel = $("#sel-horario");
+  sel.textContent = "";
+  for (let h = 5; h <= 20; h++) {
+    const valor = `${String(h).padStart(2, "0")}:00`;
+    const opt = document.createElement("option");
+    opt.value = valor;
+    opt.textContent = valor;
+    sel.appendChild(opt);
+  }
+  sel.value = "07:00";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   $("#folio-data").textContent = dataPorExtenso();
   $("#inp-data").value = hojeISO();
+  popularHorarios();
 
   $("#btn-buscar").addEventListener("click", executarVarredura);
   $("#btn-mais").addEventListener("click", renderizarLote);

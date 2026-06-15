@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 logger = logging.getLogger("vigilia.ia")
 
@@ -40,21 +41,54 @@ def resumo_disponivel() -> bool:
 
 
 SYSTEM_INSTRUCTION = (
-    "Você é analista sênior de inteligência regulatória da Secretaria Municipal "
-    "da Saúde de Joinville (SC), na Unidade de Convênios e Parcerias. Sua função "
-    "é ler as publicações dos diários oficiais e produzir uma síntese executiva "
-    "diária para gestores — objetiva, confiável e acionável.\n\n"
-    "PRINCÍPIOS:\n"
-    "- Escreva em português formal, claro e direto, sem jargão de IA.\n"
-    "- NUNCA invente fatos, números, prazos ou nomes que não estejam nas "
-    "publicações fornecidas. Fidelidade absoluta à fonte.\n"
-    "- Priorize o que afeta a gestão municipal de saúde de Joinville: repasses e "
-    "incentivos financeiros, habilitações de serviços/leitos, convênios e "
-    "parcerias, credenciamentos, prazos e chamamentos, e portarias que citem "
-    "diretamente Joinville ou Santa Catarina.\n"
-    "- Quantifique quando possível (valores, nº de portarias, prazos).\n"
-    "- Se nada for materialmente relevante para Joinville, diga isso em uma "
-    "frase, sem floreio."
+    'Você é o motor de Inteligência Artificial do "Vigília", um sistema '
+    "especialista em auditoria e monitoramento de Diários Oficiais para a gestão "
+    "pública de saúde. Sua função é transformar textos jurídicos densos em uma "
+    "síntese executiva, visualmente escaneável e altamente acionável para a "
+    "equipe de Planejamento e Contratos.\n\n"
+    "Ao analisar o lote de publicações filtradas, gere o output ESTRITAMENTE no "
+    "formato Markdown abaixo, seguindo as regras de negócio de cada seção.\n\n"
+    "DIRETRIZES DE ESTILO E FORMATAÇÃO\n"
+    "1. Use emojis de forma semântica (marcadores de impacto/status), nunca "
+    "decorativos.\n"
+    "2. Destaque valores financeiros em negrito (ex: **R$ 1.500.000,00**).\n"
+    "3. Seja conciso. Elimine jargões repetitivos (\"Vale verificar\", "
+    "\"Relevante para a rede\"). Vá direto ao ponto técnico.\n"
+    "4. Se houver prazos na publicação, force o destaque visual deles.\n\n"
+    "ESTRUTURA DO OUTPUT (TEMPLATE):\n\n"
+    "✦ **Vigília IA · Análise de Impacto**\n\n"
+    "## 📊 Panorama do Dia\n"
+    "* [Emoji de status: 🟢 Baixo | 🟡 Moderado | 🔴 Crítico] **Volume:** [X] "
+    "publicações analisadas na edição.\n"
+    "* **Foco Principal:** [Frase única resumindo o principal acontecimento do "
+    "dia, ex: \"Forte movimentação de repasses de custeio e habilitações de "
+    "leitos\"].\n\n"
+    "## 🎯 Atos de Alto Impacto (Joinville)\n"
+    "[Para cada portaria/ato relevante para o município, use a estrutura abaixo. "
+    "Ordene por impacto financeiro ou urgência legal]\n"
+    "### 🔹 [NÚMERO DO ATO / ÓRGÃO] — [Resumo Técnico do Objeto em até 5 "
+    "palavras]\n"
+    "* 💰 **Impacto:** [Se financeiro: \"Repasse estimado de R$ X\" ou \"Desconto "
+    "de R$ X via FAEC\". Se regulatório: \"Adesão/Habilitação de serviços\"].\n"
+    "* 🔍 **O que diz o texto:** [1 ou 2 frases curtas explicando a essência do "
+    "ato, sem enrolação].\n"
+    "* ⏳ **Prazo:** [Se houver: \"Até DD/MM/AAAA\" ou \"Imediato\". Se não "
+    "houver, omitir esta linha].\n\n"
+    "## ⚡ Próximos Passos Recomendados\n"
+    "[Gere uma lista de tarefas direta e imperativa com os responsáveis "
+    "prováveis]\n"
+    "* ▢ **[Setor Destino, ex: Financeiro/Contratos]:** [Ação verbal clara, ex: "
+    "Verificar enquadramento de Joinville nos critérios do Anexo X da Portaria "
+    "11.505] - *Motivo: Risco de perda de prazo/recurso.*\n"
+    "* ▢ **[Setor Destino, ex: Regulação/Gestão]:** [Ação verbal clara]\n\n"
+    "REGRAS DE RESTRIÇÃO ABSOLUTA\n"
+    "- Se nenhuma publicação impactar diretamente o município ou as regras de "
+    "negócio configuradas, o output deve ser ESTRITAMENTE: \"✦ **Vigília IA:** "
+    "Nenhuma publicação de alto impacto ou com potencial de repasse financeiro "
+    "foi identificada nesta edição para os termos monitorados.\"\n"
+    "- Nunca invente valores. Se o valor do repasse para o município não estiver "
+    "explícito no texto ou nos anexos processados, escreva: \"💰 **Impacto:** "
+    "Repasse financeiro (valor sob consulta nos anexos do ato)\"."
 )
 
 
@@ -82,24 +116,10 @@ def _montar_prompt(resultados: list[dict], data_br: str, palavras: list[str]) ->
         f"DATA DA EDIÇÃO: {data_br}\n"
         f"TERMOS MONITORADOS: {termos}\n"
         f"TOTAL DE PUBLICAÇÕES ENCONTRADAS: {total}{nota_amostra}\n\n"
-        "TAREFA: produza a síntese executiva do dia para quem está vendo este "
-        "resultado (no painel do site ou no e-mail). Use EXATAMENTE estes rótulos "
-        "em MAIÚSCULAS, cada um em sua própria linha, seguido do texto; omita uma "
-        "seção apenas se realmente não houver nada para ela:\n\n"
-        f"PANORAMA: comece dizendo, em números, quantas publicações foram "
-        f"encontradas ({total}) e dê a leitura geral do dia em 1 a 2 frases — se o "
-        "volume é alto ou baixo e se há algo que exige atenção imediata.\n"
-        "DESTAQUES PARA JOINVILLE: 2 a 4 itens em tópicos (use '• '). Em cada um, "
-        "explique com clareza, em linguagem simples, O QUE a publicação diz e POR "
-        "QUE isso importa para quem acompanha a saúde de Joinville (cite o tipo do "
-        "ato e, quando houver, valor, prazo ou serviço afetado). Se nada citar "
-        "Joinville diretamente, traga o que mais se aproxima do interesse municipal "
-        "e diga isso.\n"
-        "RECOMENDAÇÃO: 1 frase com a próxima ação sugerida (ex.: verificar adesão, "
-        "observar prazo, encaminhar à área responsável). Omita se não houver ação "
-        "cabível.\n\n"
-        "Seja claro e direto, no máximo ~190 palavras no total. Não invente nada "
-        "que não esteja nas publicações.\n\n"
+        "TAREFA: analise as publicações abaixo e produza a síntese seguindo "
+        "EXATAMENTE o template Markdown e as regras de restrição definidas nas "
+        f"suas instruções. No campo Volume, use o total real de {total} "
+        "publicações.\n\n"
         f"PUBLICAÇÕES:\n{corpo_lista}"
     )
 
@@ -126,32 +146,57 @@ def gerar_resumo(
     try:
         # Import tardio: a dependência só é necessária quando a IA está ativa.
         from google import genai  # type: ignore
-
         from google.genai import types  # type: ignore
-
-        cliente = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-        prompt = _montar_prompt(resultados, data_br, palavras)
-        resposta = cliente.models.generate_content(
-            model=modelo or MODELO_PADRAO,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_INSTRUCTION,
-                temperature=0.3,          # baixa: factual e estável
-                max_output_tokens=1200,
-                # Os modelos 2.5 "pensam" antes de responder, consumindo o
-                # orçamento de tokens. Para um resumo estruturado isso é
-                # desnecessário e trunca a saída — desligamos o thinking.
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            ),
-        )
-        texto = (getattr(resposta, "text", "") or "").strip()
-        return texto or None
+        from google.genai import errors as genai_errors  # type: ignore
     except ImportError:
         logger.warning(
             "Pacote 'google-genai' não instalado — adicione-o em "
             "functions/requirements.txt para habilitar o resumo por IA."
         )
         return None
-    except Exception:
-        logger.exception("Falha ao gerar resumo por IA — relatório segue sem o bloco.")
-        return None
+
+    cliente = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    prompt = _montar_prompt(resultados, data_br, palavras)
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_INSTRUCTION,
+        temperature=0.3,          # baixa: factual e estável
+        max_output_tokens=1200,
+        # Os modelos 2.5 "pensam" antes de responder, consumindo o orçamento de
+        # tokens. Para um resumo estruturado isso é desnecessário e trunca a
+        # saída — desligamos o thinking.
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+    )
+
+    # O Gemini retorna 503 (sobrecarga) e 429 (limite/minuto) de forma
+    # transitória. Tentamos algumas vezes com backoff antes de desistir; se
+    # nada der certo, retornamos None e o relatório segue sem o bloco de IA.
+    transitorios = {429, 500, 502, 503, 504}
+    ultima_excecao = None
+    for tentativa in range(3):
+        try:
+            resposta = cliente.models.generate_content(
+                model=modelo or MODELO_PADRAO,
+                contents=prompt,
+                config=config,
+            )
+            return (getattr(resposta, "text", "") or "").strip() or None
+        except genai_errors.APIError as e:
+            ultima_excecao = e
+            if getattr(e, "code", None) in transitorios and tentativa < 2:
+                espera = 2 * (tentativa + 1)
+                logger.warning(
+                    "Gemini %s (tentativa %d/3) — repetindo em %ds.",
+                    getattr(e, "code", "?"), tentativa + 1, espera,
+                )
+                time.sleep(espera)
+                continue
+            break
+        except Exception as e:
+            ultima_excecao = e
+            break
+
+    logger.warning(
+        "Falha ao gerar resumo por IA (%s) — relatório segue sem o bloco.",
+        ultima_excecao,
+    )
+    return None

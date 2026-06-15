@@ -158,6 +158,11 @@
             <input type="email" id="inp-email" class="chip-input"
                    placeholder="email@joinville.sc.gov.br + Enter…" autocomplete="off">
           </div>
+          <div class="config-horario">
+            <label class="field-label" for="sel-horario">Horário de envio (dias úteis)</label>
+            <select id="sel-horario" class="select-horario"></select>
+            <p class="config-nota">O e-mail usa sempre o operador <strong>E</strong> (todos os termos) e a edição do <strong>dia útil anterior</strong>.</p>
+          </div>
           <label class="toggle toggle-ia">
             <input type="checkbox" id="chk-resumo-ia">
             <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -177,9 +182,10 @@
   </div>
 
   <!-- ==================================================== ESTADO DA BUSCA -->
-  <section class="telex reveal-late" id="sec-telex" hidden aria-live="polite">
-    <div class="telex-line" id="telex-linha-1"></div>
-    <div class="telex-line" id="telex-linha-2"></div>
+  <section class="loader" id="sec-telex" hidden aria-live="polite">
+    <div class="loader-bar"><span class="loader-bar-fill"></span></div>
+    <div class="loader-titulo" id="loader-titulo"></div>
+    <div class="loader-frase" id="loader-frase"></div>
   </section>
 
   <!-- ==================================================== RESULTADOS -->

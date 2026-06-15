@@ -151,10 +151,23 @@ nome de exibição "bonito", ex.:
 `Vigília · Diários Oficiais SMS Joinville <seu-email>`, e um corpo HTML
 no estilo "Gazeta Oficial" (`vigilia_core/relatorio.py`).
 
-A função agendada `relatorio_diario` roda **dias úteis às 07h (America/Sao_Paulo)**,
-**desativada por padrão** (só envia quando `config/relatorio.ativo == true` e há
-destinatários). Há ainda o endpoint `POST /api/relatorio/testar`, acionado pelo
-botão **"Enviar teste agora"** na SPA, que envia o relatório do dia imediatamente.
+A função agendada `relatorio_diario` roda **de hora em hora (dias úteis,
+America/Sao_Paulo)** e só dispara o e-mail na **hora configurada** em
+`config/relatorio.horario` — assim o horário é ajustável pela interface (dropdown
+de horas) sem novo deploy. Fica **desativada por padrão** (só envia quando
+`config/relatorio.ativo == true` e há destinatários), com guarda anti-reenvio no
+mesmo dia. Há ainda o endpoint `POST /api/relatorio/testar` (botão **"Enviar teste
+agora"** na SPA).
+
+Regras fixas do e-mail:
+- **Operador sempre `E`** (todos os termos) — independente do que estiver
+  selecionado na busca manual do site.
+- **Dia útil anterior**: como o envio ocorre de manhã, a edição varrida é a do
+  último dia útil (segunda → sexta; pula feriados fixos). Não há envio em fins de
+  semana (o cron é `1-5`).
+- **Resiliente à IA**: se a síntese por IA falhar (sem cota, modelo sobrecarregado
+  com `503`, etc.), o e-mail é enviado normalmente, apenas sem o bloco de síntese.
+  O `vigilia_core/ia.py` ainda tenta novamente em erros transitórios (429/5xx).
 
 ### Configurar as credenciais SMTP (Firebase Secrets)
 
@@ -245,8 +258,10 @@ exibido **no painel do site** e **no topo do relatório por e-mail**.
 Controle: toggle *Síntese por IA* em *Configurações* (campo `resumo_ia` em
 `config/relatorio`). Fica inerte se a `GEMINI_API_KEY` não estiver configurada.
 
-- **Site:** o endpoint `POST /api/sintese` é chamado **após** os resultados
-  renderizarem (não-bloqueante) e cacheia por busca na coleção `sinteses`.
+- **Site:** quando a IA está ligada, os resultados só aparecem **junto com a
+  síntese** — durante a espera, um loader com barra de progresso e frases de
+  efeito é exibido. Se a IA falhar/sem cota, os resultados aparecem mesmo assim.
+  O endpoint `POST /api/sintese` cacheia por busca na coleção `sinteses`.
 - **E-mail:** a síntese entra no relatório quando `resumo_ia` está ligado.
 - **Modelo:** `gemini-2.5-flash` (`ia.MODELO_PADRAO`), com *thinking* desligado
   para não truncar a resposta. Limites de volume controlam custo/latência.

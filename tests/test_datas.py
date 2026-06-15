@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from vigilia_core.datas import dia_util_anterior
+from vigilia_core.datas import dia_util_anterior, hora_de_horario
 
 
 def test_terca_a_sexta_volta_um_dia():
@@ -25,3 +25,12 @@ def test_pula_feriado_fixo():
 def test_dia_apos_finados():
     # 03/11/2026 (terça) → 02/11 é Finados (feriado) → 30/10/2026 (sexta)
     assert dia_util_anterior(date(2026, 11, 3)) == date(2026, 10, 30)
+
+
+def test_hora_de_horario():
+    assert hora_de_horario("07:00") == 7
+    assert hora_de_horario("18:30") == 18
+    assert hora_de_horario("00:00") == 0
+    assert hora_de_horario("inválido") == 7   # fallback
+    assert hora_de_horario("") == 7
+    assert hora_de_horario("99:00") == 23      # clamp
