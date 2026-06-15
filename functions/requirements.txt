@@ -6,3 +6,5 @@ beautifulsoup4>=4.12.0
 # Base de fusos horários (zoneinfo America/Sao_Paulo) — necessária no Windows
 # e na introspecção local do deploy; inócua no Linux das Functions.
 tzdata>=2025.1
+# Síntese por IA (Google AI Studio / Gemini)
+google-genai>=1.0.0

@@ -27,7 +27,7 @@ import os
 
 logger = logging.getLogger("vigilia.ia")
 
-MODELO_PADRAO = "gemini-2.0-flash"
+MODELO_PADRAO = "gemini-2.5-flash"
 
 # Limita o volume enviado ao modelo (controle de custo/latência).
 MAX_PUBLICACOES_NO_PROMPT = 60
@@ -73,24 +73,33 @@ def _montar_prompt(resultados: list[dict], data_br: str, palavras: list[str]) ->
     corpo_lista = "\n\n".join(linhas) if linhas else "(nenhuma publicação)"
     total = len(resultados)
 
+    nota_amostra = (
+        f" (a lista abaixo traz as {MAX_PUBLICACOES_NO_PROMPT} primeiras para análise)"
+        if total > MAX_PUBLICACOES_NO_PROMPT else ""
+    )
+
     return (
         f"DATA DA EDIÇÃO: {data_br}\n"
         f"TERMOS MONITORADOS: {termos}\n"
-        f"TOTAL DE PUBLICAÇÕES CAPTADAS: {total}"
-        f"{' (resumindo as ' + str(MAX_PUBLICACOES_NO_PROMPT) + ' primeiras)' if total > MAX_PUBLICACOES_NO_PROMPT else ''}\n\n"
-        "TAREFA: produza a síntese executiva do dia, na seguinte estrutura "
-        "(use exatamente estes rótulos em MAIÚSCULAS, cada um em sua linha, "
-        "seguido do texto; omita uma seção apenas se não houver nada para ela):\n\n"
-        "PANORAMA: 1 a 2 frases com a leitura geral do dia (volume e se há algo "
-        "que exige atenção imediata da gestão).\n"
-        "DESTAQUES PARA JOINVILLE: 2 a 4 itens em tópicos (use '• '), cada um "
-        "resumindo uma publicação relevante e POR QUE importa para o município "
-        "(cite o tipo do ato e, quando houver, valor/prazo). Se nada citar "
-        "Joinville diretamente, traga o que mais se aproxima do interesse municipal.\n"
-        "RECOMENDAÇÃO: 1 frase indicando a próxima ação sugerida à equipe "
-        "(ex.: verificar adesão, observar prazo, encaminhar à área X). Omita se "
-        "não houver ação cabível.\n\n"
-        "Seja conciso: no máximo ~180 palavras no total.\n\n"
+        f"TOTAL DE PUBLICAÇÕES ENCONTRADAS: {total}{nota_amostra}\n\n"
+        "TAREFA: produza a síntese executiva do dia para quem está vendo este "
+        "resultado (no painel do site ou no e-mail). Use EXATAMENTE estes rótulos "
+        "em MAIÚSCULAS, cada um em sua própria linha, seguido do texto; omita uma "
+        "seção apenas se realmente não houver nada para ela:\n\n"
+        f"PANORAMA: comece dizendo, em números, quantas publicações foram "
+        f"encontradas ({total}) e dê a leitura geral do dia em 1 a 2 frases — se o "
+        "volume é alto ou baixo e se há algo que exige atenção imediata.\n"
+        "DESTAQUES PARA JOINVILLE: 2 a 4 itens em tópicos (use '• '). Em cada um, "
+        "explique com clareza, em linguagem simples, O QUE a publicação diz e POR "
+        "QUE isso importa para quem acompanha a saúde de Joinville (cite o tipo do "
+        "ato e, quando houver, valor, prazo ou serviço afetado). Se nada citar "
+        "Joinville diretamente, traga o que mais se aproxima do interesse municipal "
+        "e diga isso.\n"
+        "RECOMENDAÇÃO: 1 frase com a próxima ação sugerida (ex.: verificar adesão, "
+        "observar prazo, encaminhar à área responsável). Omita se não houver ação "
+        "cabível.\n\n"
+        "Seja claro e direto, no máximo ~190 palavras no total. Não invente nada "
+        "que não esteja nas publicações.\n\n"
         f"PUBLICAÇÕES:\n{corpo_lista}"
     )
 
@@ -128,7 +137,11 @@ def gerar_resumo(
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 temperature=0.3,          # baixa: factual e estável
-                max_output_tokens=600,
+                max_output_tokens=1200,
+                # Os modelos 2.5 "pensam" antes de responder, consumindo o
+                # orçamento de tokens. Para um resumo estruturado isso é
+                # desnecessário e trunca a saída — desligamos o thinking.
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
         )
         texto = (getattr(resposta, "text", "") or "").strip()

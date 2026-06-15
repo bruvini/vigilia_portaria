@@ -23,6 +23,7 @@ const estado = {
   porFonte: {},               // { DOU: [...], "DOE-SC": [...] }
   renderizadosPorFonte: {},   // quantos cards já renderizados por aba
   abaAtiva: null,
+  sinteseCache: {},           // síntese por assinatura de busca (evita recustear)
 };
 
 /* ------------------------------------------------------------------ utils */
@@ -316,6 +317,7 @@ async function executarVarredura() {
   btn.disabled = true;
   $("#sec-resultados").hidden = true;
   $("#sec-vazio").hidden = true;
+  $("#sintese-ia").hidden = true;
   telex.hidden = false;
   linha1.textContent = `> VARRENDO EDIÇÃO DE ${isoParaBR(dataISO)} · OPERADOR ${estado.operador}`;
   linha1.classList.add("is-active");
@@ -332,6 +334,7 @@ async function executarVarredura() {
     estado.resultados = resposta.resultados || [];
     estado.palavrasBusca = palavras;
     renderizarResultados(resposta);
+    carregarSintese({ data: dataISO, palavras, operador: estado.operador, fontes });
   } catch (e) {
     linha2.textContent = `ERRO: ${e.message}`;
     linha1.classList.remove("is-active");
@@ -342,6 +345,118 @@ async function executarVarredura() {
   telex.hidden = true;
   linha1.classList.remove("is-active");
   btn.disabled = false;
+}
+
+/* --------------------------------------------------------- síntese por IA */
+
+const ROTULOS_SINTESE = ["PANORAMA", "DESTAQUES PARA JOINVILLE", "DESTAQUES", "RECOMENDAÇÃO"];
+
+async function carregarSintese(params) {
+  const painel = $("#sintese-ia");
+  const ativa = estado.configCarregada?.relatorio?.resumo_ia;
+  if (!ativa || !estado.resultados.length) {
+    painel.hidden = true;
+    return;
+  }
+
+  const assinatura = JSON.stringify({
+    data: params.data,
+    palavras: [...params.palavras].sort(),
+    operador: params.operador,
+    fontes: params.fontes,
+  });
+  if (estado.sinteseCache[assinatura]) {
+    renderizarSintese(estado.sinteseCache[assinatura]);
+    return;
+  }
+
+  // estado de carregamento
+  painel.hidden = false;
+  painel.className = "sintese-ia is-loading";
+  painel.textContent = "";
+  const cab = document.createElement("div");
+  cab.className = "sintese-cab";
+  cab.textContent = "✦ Síntese por IA";
+  const load = document.createElement("div");
+  load.className = "sintese-loading";
+  load.textContent = "Analisando as publicações e gerando o resumo…";
+  painel.append(cab, load);
+
+  try {
+    const resp = await chamarAPI("/sintese", {
+      method: "POST",
+      body: JSON.stringify({ ...params, resultados: estado.resultados }),
+    });
+    if (resp.sintese) {
+      estado.sinteseCache[assinatura] = resp.sintese;
+      renderizarSintese(resp.sintese);
+    } else {
+      painel.hidden = true;  // IA indisponível ou sem resultados
+    }
+  } catch (e) {
+    painel.hidden = true;
+    console.warn("Síntese por IA indisponível:", e.message);
+  }
+}
+
+function renderizarSintese(texto) {
+  const painel = $("#sintese-ia");
+  painel.hidden = false;
+  painel.className = "sintese-ia";
+  painel.textContent = "";
+
+  const cab = document.createElement("div");
+  cab.className = "sintese-cab";
+  cab.textContent = "✦ Síntese por IA";
+  painel.appendChild(cab);
+
+  const corpo = document.createElement("div");
+  corpo.className = "sintese-corpo";
+
+  for (const linhaBruta of String(texto).split("\n")) {
+    const linha = linhaBruta.trim();
+    if (!linha) continue;
+
+    const rotulo = ROTULOS_SINTESE.find(
+      (r) => linha.toUpperCase().startsWith(r) &&
+             (linha.length === r.length || /^[:\s]/.test(linha.slice(r.length)))
+    );
+
+    if (rotulo) {
+      const h = document.createElement("div");
+      h.className = "sintese-rotulo";
+      h.textContent = rotulo;
+      corpo.appendChild(h);
+      const resto = linha.slice(rotulo.length).replace(/^[:\s]+/, "").trim();
+      if (resto) {
+        const p = document.createElement("p");
+        p.className = "sintese-p";
+        p.textContent = resto;
+        corpo.appendChild(p);
+      }
+    } else if (/^[•\-*]/.test(linha)) {
+      const item = document.createElement("div");
+      item.className = "sintese-item";
+      const marca = document.createElement("span");
+      marca.className = "sintese-bullet";
+      marca.textContent = "▸";
+      const txt = document.createElement("span");
+      txt.textContent = linha.replace(/^[•\-*]\s*/, "");
+      item.append(marca, txt);
+      corpo.appendChild(item);
+    } else {
+      const p = document.createElement("p");
+      p.className = "sintese-p";
+      p.textContent = linha;
+      corpo.appendChild(p);
+    }
+  }
+
+  const rodape = document.createElement("div");
+  rodape.className = "sintese-rodape";
+  rodape.textContent =
+    "Resumo gerado por IA a partir das publicações abaixo. Confira sempre o ato oficial.";
+  painel.append(corpo, rodape);
 }
 
 /* ------------------------------------------------------------ renderização */

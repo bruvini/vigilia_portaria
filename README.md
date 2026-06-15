@@ -236,21 +236,24 @@ terminologia (Ontoserver/Snowstorm) está documentada em `vigilia_core/fhir.py`.
 
 ---
 
-## Síntese por IA (preparado — Google AI Studio / Gemini)
+## Síntese por IA (Google AI Studio / Gemini) — ATIVA
 
-O módulo `vigilia_core/ia.py` está pronto para gerar um **resumo executivo** das
-publicações no topo do relatório por e-mail, usando o Gemini. Fica **inerte
-enquanto não houver API key** (nenhuma chamada de rede). Para ativar no futuro:
+O módulo `vigilia_core/ia.py` gera um **resumo executivo** das publicações
+(quantas foram encontradas, o que dizem e por que importam para Joinville),
+exibido **no painel do site** e **no topo do relatório por e-mail**.
 
-1. Crie uma API key no Google AI Studio: https://aistudio.google.com/apikey
-2. Defina o secret: `firebase functions:secrets:set GEMINI_API_KEY`
-3. Em `functions/requirements.txt`, adicione: `google-genai>=1.0.0`
-4. Em `functions/main.py`, descomente `GEMINI_API_KEY` e some-o à lista
-   `secrets=[...]` das funções `api` e `relatorio_diario`.
-5. Na SPA: *Configurações* → ligue *Incluir síntese por IA*.
+Controle: toggle *Síntese por IA* em *Configurações* (campo `resumo_ia` em
+`config/relatorio`). Fica inerte se a `GEMINI_API_KEY` não estiver configurada.
 
-O modelo padrão é `gemini-2.0-flash` (ajustável em `ia.MODELO_PADRAO`), com
-limites de volume para controlar custo/latência.
+- **Site:** o endpoint `POST /api/sintese` é chamado **após** os resultados
+  renderizarem (não-bloqueante) e cacheia por busca na coleção `sinteses`.
+- **E-mail:** a síntese entra no relatório quando `resumo_ia` está ligado.
+- **Modelo:** `gemini-2.5-flash` (`ia.MODELO_PADRAO`), com *thinking* desligado
+  para não truncar a resposta. Limites de volume controlam custo/latência.
+
+Para (re)configurar a chave: `firebase functions:secrets:set GEMINI_API_KEY` e
+redeploy das funções. Observação: o `gemini-2.0-flash` perdeu cota no free tier
+(erro 429 `limit: 0`) — por isso o padrão é o `2.5-flash`.
 
 ---
 

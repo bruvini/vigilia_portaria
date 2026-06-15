@@ -41,7 +41,16 @@ $venv = Join-Path $Stage "functions\venv"
 if (-not (Test-Path (Join-Path $venv "Scripts\activate.bat"))) {
     python -m venv $venv
 }
-& (Join-Path $venv "Scripts\python.exe") -m pip install -r (Join-Path $Stage "functions\requirements.txt") --quiet
+# O pip escreve avisos em stderr; com ErrorActionPreference=Stop o PowerShell
+# trataria isso como falha fatal. Isolamos a chamada e checamos o exit code.
+$py = Join-Path $venv "Scripts\python.exe"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+& $py -m pip install -r (Join-Path $Stage "functions\requirements.txt") --quiet 2>&1 |
+    ForEach-Object { Write-Host $_ }
+$pipExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($pipExit -ne 0) { throw "pip install falhou (código $pipExit)" }
 
 Write-Host "==> firebase deploy" -ForegroundColor Cyan
 Push-Location $Stage

@@ -10,6 +10,7 @@ Funções publicadas:
                       GET  /api/config           → configuração (com seed)
                       POST /api/config           → salva configuração
                       POST /api/buscar           → varredura DOU + DOE-SC
+                      POST /api/sintese          → síntese por IA dos resultados
                       POST /api/fhir             → FHIR Message Bundle
                       POST /api/relatorio/testar → envia o relatório do dia AGORA
 
@@ -62,10 +63,12 @@ SMTP_PORT = SecretParam("VIGILIA_SMTP_PORT")
 SMTP_USER = SecretParam("VIGILIA_SMTP_USER")
 SMTP_PASS = SecretParam("VIGILIA_SMTP_PASS")
 SMTP_FROM = SecretParam("VIGILIA_SMTP_FROM")
-SECRETS_EMAIL = [SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM]
 
-# Para ativar a IA no futuro: descomente e some à lista `secrets` das funções.
-# GEMINI_API_KEY = SecretParam("GEMINI_API_KEY")
+# Síntese por IA (Google AI Studio / Gemini)
+GEMINI_API_KEY = SecretParam("GEMINI_API_KEY")
+
+# Lista única de secrets injetados nas funções (SMTP + IA).
+SECRETS = [SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, GEMINI_API_KEY]
 
 _CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -155,14 +158,16 @@ def _executar_varredura(data_publicacao: date, palavras, operador, fontes) -> di
 
 def _montar_e_enviar_relatorio(
     db, destinatarios: list[str], data_pub: date,
-    palavras, operador, fontes,
+    palavras, operador, fontes, usar_ia: bool = False,
 ) -> dict:
-    """Varre, (futuramente) resume com IA, envia o e-mail e registra o histórico."""
+    """Varre, opcionalmente resume com IA, envia o e-mail e registra o histórico."""
     resultado = _executar_varredura(data_pub, palavras, operador, fontes)
 
-    resumo_ia = ia.gerar_resumo(
-        resultado["resultados"], data_pub.strftime("%d/%m/%Y"), palavras
-    )
+    resumo_ia = None
+    if usar_ia:
+        resumo_ia = ia.gerar_resumo(
+            resultado["resultados"], data_pub.strftime("%d/%m/%Y"), palavras
+        )
 
     assunto, html_corpo = gerar_relatorio_html(
         resultado["resultados"], data_pub, palavras, operador, resumo_ia=resumo_ia
@@ -190,7 +195,7 @@ def _montar_e_enviar_relatorio(
     memory=options.MemoryOption.MB_512,
     timeout_sec=300,
     max_instances=5,
-    secrets=SECRETS_EMAIL,  # some GEMINI_API_KEY aqui para habilitar a IA
+    secrets=SECRETS,
 )
 def api(req: https_fn.Request) -> https_fn.Response:
     if req.method == "OPTIONS":
@@ -222,6 +227,9 @@ def api(req: https_fn.Request) -> https_fn.Response:
             if not isinstance(registros, list):
                 return _erro("Campo 'resultados' deve ser uma lista.")
             return _json_response({"bundle": montar_bundle(registros)})
+
+        if req.method == "POST" and rota == "/sintese":
+            return _rota_sintese(req.get_json(silent=True) or {})
 
         if req.method == "POST" and rota == "/relatorio/testar":
             return _rota_testar_relatorio(req.get_json(silent=True) or {})
@@ -287,6 +295,58 @@ def _rota_buscar(corpo: dict) -> https_fn.Response:
     return _json_response(resultado)
 
 
+def _rota_sintese(corpo: dict) -> https_fn.Response:
+    """
+    Gera a síntese por IA dos resultados já exibidos no painel (não-bloqueante:
+    o site mostra os cards na hora e busca a síntese em seguida).
+
+    Cacheia por assinatura da busca (data + termos + operador + fontes) na
+    coleção `sinteses`, evitando custo repetido na mesma consulta.
+    """
+    if not ia.resumo_disponivel():
+        return _json_response({"sintese": None, "motivo": "ia_indisponivel"})
+
+    resultados = corpo.get("resultados", [])
+    if not isinstance(resultados, list) or not resultados:
+        return _json_response({"sintese": None, "motivo": "sem_resultados"})
+
+    data_str = str(corpo.get("data", "")).strip()
+    try:
+        data_pub = date.fromisoformat(data_str)
+    except ValueError:
+        return _erro(f"Data inválida: {data_str!r}. Use AAAA-MM-DD.")
+
+    palavras = limpar_palavras(corpo.get("palavras", []))
+    operador = normalizar_operador(corpo.get("operador", "OU"))
+    fontes = corpo.get("fontes") or {}
+
+    import hashlib
+    assinatura = json.dumps(
+        {"data": data_str, "palavras": sorted(palavras),
+         "operador": operador, "fontes": fontes},
+        sort_keys=True, ensure_ascii=False,
+    )
+    chave = hashlib.sha1(assinatura.encode("utf-8")).hexdigest()
+
+    modelo = corpo.get("modelo") or None  # override opcional (diagnóstico)
+
+    db = _db()
+    ref = db.collection("sinteses").document(chave)
+    if not modelo:  # cache só vale para o modelo padrão
+        doc = ref.get()
+        if doc.exists and doc.to_dict().get("texto"):
+            return _json_response({"sintese": doc.to_dict()["texto"], "cache": True})
+
+    texto = ia.gerar_resumo(resultados, data_pub.strftime("%d/%m/%Y"), palavras, modelo=modelo)
+    if texto and not modelo:
+        ref.set({
+            "texto": texto,
+            "total": len(resultados),
+            "gerado_em": datetime.now(timezone.utc).isoformat(),
+        })
+    return _json_response({"sintese": texto})
+
+
 def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
     """Envia o relatório da data informada (ou de hoje) imediatamente."""
     db = _db()
@@ -309,12 +369,16 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
         except ValueError:
             return _erro(f"Data inválida: {data_str!r}. Use AAAA-MM-DD.")
 
+    # IA: respeita o toggle salvo, mas permite override no corpo do teste.
+    usar_ia = bool(corpo.get("resumo_ia", cfg_r.get("resumo_ia", False)))
+
     try:
         resumo = _montar_e_enviar_relatorio(
             db, destinatarios, data_pub,
             cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
             cfg_v.get("operador", config_padrao.OPERADOR_PADRAO),
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
+            usar_ia=usar_ia,
         )
         return _json_response({
             "enviado": True,
@@ -343,7 +407,7 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
     region=REGIAO,
     memory=options.MemoryOption.MB_512,
     timeout_sec=540,
-    secrets=SECRETS_EMAIL,  # some GEMINI_API_KEY aqui para habilitar a IA
+    secrets=SECRETS,
 )
 def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
     db = _db()
@@ -370,6 +434,7 @@ def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
             cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
             cfg_v.get("operador", config_padrao.OPERADOR_PADRAO),
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
+            usar_ia=bool(cfg_r.get("resumo_ia", False)),
         )
         logger.info(
             "Relatório da edição de %s enviado: %d publicações para %d destinatário(s).",

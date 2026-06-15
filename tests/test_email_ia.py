@@ -133,3 +133,17 @@ def test_ia_prompt_inclui_publicacoes():
     assert "PORTARIA X" in prompt
     assert "saúde" in prompt
     assert "Joinville" in prompt
+
+
+def test_ia_prompt_menciona_total():
+    """O prompt deve informar quantas publicações foram encontradas."""
+    prompt = ia._montar_prompt([_ato(), _ato("DOE-SC")], "09/06/2026", [])
+    assert "TOTAL DE PUBLICAÇÕES ENCONTRADAS: 2" in prompt
+    # e instrui o modelo a abrir o PANORAMA com a contagem
+    assert "PANORAMA" in prompt and "quantas publicações" in prompt
+
+
+def test_ia_prompt_estrutura_rotulos():
+    prompt = ia._montar_prompt([_ato()], "09/06/2026", ["saúde"])
+    for rotulo in ("PANORAMA", "DESTAQUES PARA JOINVILLE", "RECOMENDAÇÃO"):
+        assert rotulo in prompt
