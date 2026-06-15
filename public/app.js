@@ -19,8 +19,10 @@ const estado = {
   operador: "OU",
   resultados: [],
   palavrasBusca: [],
-  renderizados: 0,
   configCarregada: null,
+  porFonte: {},               // { DOU: [...], "DOE-SC": [...] }
+  renderizadosPorFonte: {},   // quantos cards já renderizados por aba
+  abaAtiva: null,
 };
 
 /* ------------------------------------------------------------------ utils */
@@ -344,13 +346,16 @@ async function executarVarredura() {
 
 /* ------------------------------------------------------------ renderização */
 
+const ORDEM_FONTES = { "DOU": 0, "DOE-SC": 1, "DOE-JOI": 2 };
+
 function renderizarResultados(resposta) {
   const secao = $("#sec-resultados");
   const grupos = $("#res-grupos");
   const erros = $("#res-erros");
+  const tabs = $("#res-tabs");
   grupos.textContent = "";
   erros.textContent = "";
-  estado.renderizados = 0;
+  tabs.textContent = "";
 
   for (const erro of resposta.erros || []) {
     const div = document.createElement("div");
@@ -365,6 +370,7 @@ function renderizarResultados(resposta) {
     return;
   }
 
+  // contador geral (todas as fontes)
   const partes = Object.entries(resposta.por_origem || {})
     .map(([origem, n]) => `${origem}: ${n}`)
     .join(" · ");
@@ -374,49 +380,71 @@ function renderizarResultados(resposta) {
   strong.textContent = String(resposta.total);
   counter.append(strong, ` publicação(ões) encontrada(s) — ${partes}`);
 
-  renderizarLote();
+  // agrupa por fonte e ordena (DOU primeiro)
+  estado.porFonte = {};
+  for (const r of estado.resultados) {
+    const origem = r.origem || "DOU";
+    (estado.porFonte[origem] = estado.porFonte[origem] || []).push(r);
+  }
+  estado.renderizadosPorFonte = {};
+  const fontes = Object.keys(estado.porFonte)
+    .sort((a, b) => (ORDEM_FONTES[a] ?? 9) - (ORDEM_FONTES[b] ?? 9));
+
+  // barra de abas — só aparece quando há mais de uma fonte
+  if (fontes.length > 1) {
+    for (const fonte of fontes) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = `res-tab res-tab-${fonte === "DOE-SC" ? "doesc" : "dou"}`;
+      tab.dataset.fonte = fonte;
+      tab.setAttribute("role", "tab");
+      const nome = document.createElement("span");
+      nome.textContent = NOMES_FONTES[fonte] || fonte;
+      const cnt = document.createElement("span");
+      cnt.className = "res-tab-count";
+      cnt.textContent = String(estado.porFonte[fonte].length);
+      tab.append(nome, cnt);
+      tab.addEventListener("click", () => ativarAba(fonte));
+      tabs.appendChild(tab);
+    }
+    tabs.hidden = false;
+  } else {
+    tabs.hidden = true;
+  }
+
+  ativarAba(fontes[0]);
+
   secao.hidden = false;
   $("#sec-vazio").hidden = true;
   secao.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function ativarAba(fonte) {
+  estado.abaAtiva = fonte;
+  document.querySelectorAll(".res-tab").forEach((t) => {
+    const ativo = t.dataset.fonte === fonte;
+    t.classList.toggle("is-active", ativo);
+    t.setAttribute("aria-selected", String(ativo));
+  });
+  // renderiza a fonte ativa do zero (paginação independente por aba)
+  $("#res-grupos").textContent = "";
+  estado.renderizadosPorFonte[fonte] = 0;
+  renderizarLote();
+}
+
 function renderizarLote() {
+  const fonte = estado.abaAtiva;
+  const lista = estado.porFonte[fonte] || [];
   const grupos = $("#res-grupos");
-  const ordenados = ordenarPorOrigem(estado.resultados);
-  const fatia = ordenados.slice(estado.renderizados, estado.renderizados + LOTE_RENDERIZACAO);
+  const ja = estado.renderizadosPorFonte[fonte] || 0;
+  const fatia = lista.slice(ja, ja + LOTE_RENDERIZACAO);
 
   for (const registro of fatia) {
-    const origem = registro.origem || "DOU";
-    let grupoEl = grupos.querySelector(`[data-grupo="${origem}"]`);
-    if (!grupoEl) {
-      const titulo = document.createElement("h4");
-      titulo.className = "group-title";
-      titulo.textContent = NOMES_FONTES[origem] || origem;
-      const count = document.createElement("span");
-      count.className = "group-count";
-      count.textContent = `${contarOrigem(origem)} registro(s)`;
-      titulo.appendChild(count);
-      grupoEl = document.createElement("div");
-      grupoEl.dataset.grupo = origem;
-      grupoEl.appendChild(titulo);
-      grupos.appendChild(grupoEl);
-    }
-    grupoEl.appendChild(montarClip(registro));
+    grupos.appendChild(montarClip(registro));
   }
 
-  estado.renderizados += fatia.length;
-  $("#load-more-wrap").hidden = estado.renderizados >= estado.resultados.length;
-}
-
-function ordenarPorOrigem(lista) {
-  const peso = { "DOU": 0, "DOE-SC": 1, "DOE-JOI": 2 };
-  return [...lista].sort(
-    (a, b) => (peso[a.origem] ?? 9) - (peso[b.origem] ?? 9)
-  );
-}
-
-function contarOrigem(origem) {
-  return estado.resultados.filter((r) => r.origem === origem).length;
+  estado.renderizadosPorFonte[fonte] = ja + fatia.length;
+  $("#load-more-wrap").hidden = estado.renderizadosPorFonte[fonte] >= lista.length;
 }
 
 function montarClip(registro) {
