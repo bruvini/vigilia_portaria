@@ -25,7 +25,7 @@ from bs4 import BeautifulSoup
 
 from .filtros import (
     criar_sessao,
-    filtrar_publicacoes,
+    filtrar_por_grupos,
     normalizar_registro,
     requisitar,
 )
@@ -91,16 +91,16 @@ def _deduplicar_por_link(registros: list[dict]) -> list[dict]:
 
 def buscar_dou(
     data_publicacao: date,
-    palavras_chave: list[str],
-    operador: str = "OU",
+    grupos: list,
     secao: str = "do1",
     orgao: Optional[str] = ORGAO_PADRAO,
     tipo_ato: Optional[str] = None,
     sessao: Optional[requests.Session] = None,
 ) -> list[dict]:
     """
-    Busca uma seção do DOU e aplica filtros em memória.
+    Busca uma seção do DOU e aplica os filtros (kits + ruído) em memória.
 
+    `grupos`: modelo de kits (DNF) — ver vigilia_core.filtros.filtrar_por_grupos.
     Retorna list[dict] no esquema padronizado; lista vazia em caso de falha.
     """
     data_fmt = data_publicacao.strftime("%d-%m-%Y")
@@ -143,8 +143,8 @@ def buscar_dou(
         # A busca NÃO inclui a hierarquia: ela sempre contém o nome do órgão
         # (ex.: "Ministério da Saúde"), o que tornaria termos como "saúde"
         # verdadeiros para todos os registros.
-        return filtrar_publicacoes(
-            registros, palavras_chave, operador,
+        return filtrar_por_grupos(
+            registros, grupos,
             campos_busca=("titulo", "descricao"),
         )
 
@@ -160,14 +160,15 @@ def buscar_dou(
 
 def buscar_dou_completo(
     data_publicacao: date,
-    palavras_chave: list[str],
-    operador: str = "OU",
+    grupos: list,
     orgao: Optional[str] = ORGAO_PADRAO,
     tipo_ato: Optional[str] = None,
 ) -> list[dict]:
     """
     Busca nas três seções do DOU (do1, do2, do3) com sessão HTTP única
     e retorna resultados consolidados e deduplicados.
+
+    `grupos`: modelo de kits (DNF) — ver vigilia_core.filtros.filtrar_por_grupos.
     """
     sessao = criar_sessao()
     consolidado: list[dict] = []
@@ -175,8 +176,7 @@ def buscar_dou_completo(
         consolidado.extend(
             buscar_dou(
                 data_publicacao=data_publicacao,
-                palavras_chave=palavras_chave,
-                operador=operador,
+                grupos=grupos,
                 secao=secao,
                 orgao=orgao,
                 tipo_ato=tipo_ato,

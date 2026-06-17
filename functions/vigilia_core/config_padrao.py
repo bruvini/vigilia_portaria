@@ -7,8 +7,16 @@ Estes valores alimentam:
   - a função agendada de relatório diário, quando não houver config salva.
 """
 
-PALAVRAS_PADRAO: list[str] = ["Joinville", "convênio", "saúde"]
+# Modelo de "kits" (conjuntos): lista de grupos; cada grupo é um E de termos,
+# e entre grupos vale OU. Ex.: [["Joinville", "saúde"], ["Joinville", "portaria"]]
+# = (Joinville E saúde) OU (Joinville E portaria).
+GRUPOS_PADRAO: list[list[str]] = [
+    ["Joinville", "saúde"],
+    ["Joinville", "portaria"],
+]
 
+# Mantidos para a migração de configs antigas (palavras_chave + operador).
+PALAVRAS_PADRAO: list[str] = ["Joinville", "convênio", "saúde"]
 OPERADOR_PADRAO: str = "OU"
 
 FONTES_PADRAO: dict[str, bool] = {

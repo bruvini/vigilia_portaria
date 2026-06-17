@@ -21,7 +21,6 @@ def test_relatorio_com_resultados():
         [_registro(), _registro("DOE-SC", "Portaria Y")],
         date(2026, 6, 9),
         ["saúde"],
-        "OU",
     )
     assert "2 publicação(ões)" in assunto or "09/06/2026" in assunto
     assert "Diário Oficial da União" in corpo
@@ -31,13 +30,13 @@ def test_relatorio_com_resultados():
 
 
 def test_relatorio_vazio_nada_consta():
-    assunto, corpo = gerar_relatorio_html([], date(2026, 6, 9), ["termo"], "E")
+    assunto, corpo = gerar_relatorio_html([], date(2026, 6, 9), ["termo"])
     assert "0 publicação(ões)" in assunto
     assert "Nada consta" in corpo
 
 
 def test_relatorio_escapa_html_malicioso():
     registro = _registro(titulo="<script>alert(1)</script>")
-    _, corpo = gerar_relatorio_html([registro], date(2026, 6, 9), [], "OU")
+    _, corpo = gerar_relatorio_html([registro], date(2026, 6, 9), [])
     assert "<script>" not in corpo
     assert "&lt;script&gt;" in corpo

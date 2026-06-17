@@ -32,7 +32,7 @@ import requests
 
 from .filtros import (
     criar_sessao,
-    filtrar_publicacoes,
+    filtrar_por_grupos,
     normalizar_registro,
     requisitar,
 )
@@ -96,13 +96,13 @@ def _mapear_materia(mat: dict, data_br: str) -> dict:
 
 def buscar_doesc(
     data_publicacao: date,
-    palavras_chave: list[str],
-    operador: str = "OU",
+    grupos: list,
 ) -> list[dict]:
     """
     Busca publicações do dia no DOE-SC (paginação automática) e filtra
-    localmente por palavras-chave (insensível a acentos e maiúsculas).
+    localmente pelos kits (insensível a acentos e maiúsculas) + ruído.
 
+    `grupos`: modelo de kits (DNF) — ver vigilia_core.filtros.filtrar_por_grupos.
     Retorna list[dict] no esquema padronizado; lista vazia em caso de falha.
     """
     dt_str = data_publicacao.strftime("%Y-%m-%d")
@@ -169,7 +169,7 @@ def buscar_doesc(
     registros = [_mapear_materia(mat, data_br) for mat in materias_total]
     # Comportamento histórico do DOE-SC: busca em resumo + assunto + categoria
     # (assunto/categoria compõem hierarquia e orgao no esquema padronizado).
-    return filtrar_publicacoes(
-        registros, palavras_chave, operador,
+    return filtrar_por_grupos(
+        registros, grupos,
         campos_busca=("resumo", "hierarquia", "orgao"),
     )

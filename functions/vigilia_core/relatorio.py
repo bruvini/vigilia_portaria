@@ -48,15 +48,14 @@ def _e(texto) -> str:
 def gerar_relatorio_html(
     resultados: list[dict],
     data_publicacao: date,
-    palavras_chave: list[str],
-    operador: str = "OU",
+    termos: list[str],
     resumo_ia: str | None = None,
 ) -> tuple[str, str]:
     """
     Gera (assunto, corpo_html) do relatório diário.
 
-    resumo_ia: se fornecido, renderiza um bloco de "Síntese por IA" no topo
-               (preparado para uso futuro — ver vigilia_core.ia).
+    termos: lista achatada dos termos monitorados (apenas para exibição).
+    resumo_ia: se fornecido, renderiza o bloco de "Síntese por IA" no topo.
     """
     data_br = data_publicacao.strftime("%d/%m/%Y")
     data_ext = _data_extenso(data_publicacao)
@@ -75,7 +74,7 @@ def gerar_relatorio_html(
     for origem, grupo in por_origem.items():
         blocos.append(_bloco_origem(origem, grupo))
 
-    termos = ", ".join(palavras_chave) if palavras_chave else "todas as publicações do dia"
+    termos_txt = ", ".join(termos) if termos else "todas as publicações do dia"
 
     corpo_central = (
         "".join(blocos)
@@ -134,8 +133,7 @@ def gerar_relatorio_html(
         <td style="font-family:Arial,sans-serif;font-size:13px;color:{_TINTA_SUAVE};
             line-height:1.6;vertical-align:top;padding-top:4px;">
           publicação(ões) encontrada(s)<br>
-          <span style="color:#94a3b8;">termos:</span> <strong>{_e(termos)}</strong> ·
-          <span style="color:#94a3b8;">operador:</span> <strong>{_e(operador)}</strong>
+          <span style="color:#94a3b8;">termos monitorados:</span> <strong>{_e(termos_txt)}</strong>
         </td>
       </tr>
     </table>

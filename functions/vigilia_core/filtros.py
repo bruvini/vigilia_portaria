@@ -136,6 +136,138 @@ def filtrar_publicacoes(
 
 
 # ---------------------------------------------------------------------------
+# Busca por "kits" (conjuntos): DNF — (a E b) OU (c E d) OU (e)
+# ---------------------------------------------------------------------------
+
+def limpar_grupos(grupos: list | None) -> list[list[str]]:
+    """
+    Normaliza a estrutura de grupos: lista de listas de termos não-vazios.
+    Cada termo pode ser uma palavra ou uma expressão (frase).
+    """
+    limpos: list[list[str]] = []
+    for grupo in (grupos or []):
+        if not isinstance(grupo, (list, tuple)):
+            continue
+        termos = [t.strip() for t in grupo if isinstance(t, str) and t.strip()]
+        if termos:
+            limpos.append(termos)
+    return limpos
+
+
+def grupos_de_legado(palavras: list[str] | None, operador: str) -> list[list[str]]:
+    """
+    Converte o modelo antigo (palavras + operador) para grupos:
+      - operador 'E'  → um único grupo com todos os termos  → [[a, b, c]]
+      - operador 'OU' → um grupo por termo                   → [[a], [b], [c]]
+    """
+    palavras = limpar_palavras(palavras)
+    if not palavras:
+        return []
+    if normalizar_operador(operador) == "E":
+        return [palavras]
+    return [[p] for p in palavras]
+
+
+def grupos_para_termos(grupos: list[list[str]]) -> list[str]:
+    """Lista achatada e única de todos os termos dos grupos (para destaque)."""
+    vistos: list[str] = []
+    for grupo in limpar_grupos(grupos):
+        for termo in grupo:
+            if termo not in vistos:
+                vistos.append(termo)
+    return vistos
+
+
+def filtrar_por_grupos(
+    registros: list[dict],
+    grupos: list | None,
+    campos_busca: tuple[str, ...] = ("titulo", "descricao", "resumo", "hierarquia"),
+    excluir_ruido: bool = True,
+) -> list[dict]:
+    """
+    Filtra registros pelo modelo de kits, insensível a acentos e maiúsculas.
+
+    Um registro é mantido se satisfizer QUALQUER grupo (OU entre grupos), e um
+    grupo é satisfeito quando TODOS os seus termos aparecem no texto (E interno).
+    Sem grupos: retorna todos os registros (apenas o filtro de ruído se aplica).
+
+    Quando `excluir_ruido` é True, descarta editais de trânsito, leilões,
+    citações judiciais e licenças ambientais (ver `eh_ruido`).
+    """
+    grupos = limpar_grupos(grupos)
+    grupos_norm = [[(t, remover_acentos(t)) for t in g] for g in grupos]
+
+    filtrados: list[dict] = []
+    descartados_ruido = 0
+    for registro in registros:
+        if excluir_ruido and eh_ruido(registro):
+            descartados_ruido += 1
+            continue
+
+        if not grupos_norm:
+            registro.setdefault("palavras_encontradas", [])
+            filtrados.append(registro)
+            continue
+
+        texto = remover_acentos(
+            " ".join(str(registro.get(campo, "")) for campo in campos_busca)
+        )
+        encontrados: list[str] = []
+        casou = False
+        for grupo in grupos_norm:
+            if all(termo_norm in texto for _, termo_norm in grupo):
+                casou = True
+                for termo_orig, _ in grupo:
+                    if termo_orig not in encontrados:
+                        encontrados.append(termo_orig)
+        if casou:
+            registro["palavras_encontradas"] = encontrados
+            filtrados.append(registro)
+
+    logger.info(
+        "Filtro por kits (%d grupo[s]): %d de %d mantidos (%d descartados como ruído)",
+        len(grupos), len(filtrados), len(registros), descartados_ruido,
+    )
+    return filtrados
+
+
+# ---------------------------------------------------------------------------
+# Filtro de ruído (antispam): exclui categorias claramente irrelevantes
+# ---------------------------------------------------------------------------
+
+# Termos que, quando aparecem na CLASSIFICAÇÃO da publicação (órgão/hierarquia/
+# título), indicam conteúdo fora do escopo de saúde — mesmo que "Joinville"
+# apareça no corpo. Comparados sem acento/maiúsculas.
+RUIDO_TERMOS = (
+    "detran",
+    "departamento estadual de transito",
+    "suspensao do direito de dirigir",
+    "infracao de transito",
+    "codigo de transito",
+    "leilao",
+    "edital de citacao",
+    "edital de intimacao",
+    "edital de notificacao de instauracao",
+    "licenca ambiental",
+    "licenciamento ambiental",
+    "licenca de operacao",
+    "junta comercial",
+)
+
+
+def eh_ruido(registro: dict) -> bool:
+    """
+    True se o registro for de uma categoria claramente irrelevante (trânsito,
+    leilão, citação judicial, licença ambiental). Avalia órgão/hierarquia/título
+    — não o corpo — para não descartar atos de saúde que apenas citem o termo.
+    """
+    classificacao = remover_acentos(
+        " ".join(str(registro.get(c, "")) for c in ("orgao", "hierarquia", "titulo"))
+    )
+    return any(termo in classificacao for termo in RUIDO_TERMOS)
+
+
+# ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
 

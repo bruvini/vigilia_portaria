@@ -268,16 +268,19 @@ Configure os parâmetros utilizados na pesquisa automatizada.
 # -----------------------------------------------------------------------------
 
 def _executar_varredura(filtros: dict) -> list[dict]:
+    from vigilia_core.filtros import grupos_de_legado
+
     registros: list[dict] = []
     data = filtros["data"]
-    palavras = filtros["palavras"]
-    operador = filtros["operador"]
+    # A interface Streamlit legada usa palavras + operador; convertemos para o
+    # modelo de kits (grupos) que os serviços agora esperam.
+    grupos = grupos_de_legado(filtros["palavras"], filtros["operador"])
 
     if filtros["fontes"]["dou"]:
         with st.status("Varrendo Diário Oficial da União (Seções 1, 2 e 3)...",
                        expanded=False):
             try:
-                encontrados = buscar_dou_completo(data, palavras, operador)
+                encontrados = buscar_dou_completo(data, grupos)
                 registros.extend(encontrados)
                 por_secao: dict[str, int] = {}
                 for r in encontrados:
@@ -293,7 +296,7 @@ def _executar_varredura(filtros: dict) -> list[dict]:
     if filtros["fontes"]["doesc"]:
         with st.status("Varrendo Diário Oficial de Santa Catarina...", expanded=False):
             try:
-                encontrados = buscar_doesc(data, palavras, operador)
+                encontrados = buscar_doesc(data, grupos)
                 registros.extend(encontrados)
                 st.write(f"{len(encontrados)} publicação(ões) encontradas no DOE-SC.")
             except Exception as e:

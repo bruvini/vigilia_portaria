@@ -16,7 +16,6 @@ const NOMES_FONTES = {
 };
 
 const estado = {
-  operador: "OU",
   resultados: [],
   palavrasBusca: [],
   configCarregada: null,
@@ -168,8 +167,142 @@ function criarChips(containerSel, inputSel, validar) {
   };
 }
 
-const chipsBusca = criarChips("#chips-busca", "#inp-palavra");
-const chipsConfig = criarChips("#chips-config", "#inp-palavra-config");
+/* --------------------------------------------- kits (conjuntos de busca) ---- */
+// Modelo DNF: lista de grupos; termos no MESMO grupo = E; entre grupos = OU.
+function criarKits(containerId) {
+  const container = document.getElementById(containerId);
+  let grupos = [[]];
+
+  function render() {
+    container.textContent = "";
+
+    grupos.forEach((grupo, gi) => {
+      if (gi > 0) {
+        const ou = document.createElement("div");
+        ou.className = "kit-ou";
+        ou.textContent = "OU";
+        container.appendChild(ou);
+      }
+
+      const kit = document.createElement("div");
+      kit.className = "kit";
+
+      const head = document.createElement("div");
+      head.className = "kit-head";
+      const label = document.createElement("span");
+      label.className = "kit-label";
+      label.textContent = "contém todos (E)";
+      head.appendChild(label);
+      if (grupos.length > 1) {
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "kit-del";
+        del.textContent = "remover";
+        del.addEventListener("click", () => {
+          grupos.splice(gi, 1);
+          if (!grupos.length) grupos = [[]];
+          render();
+        });
+        head.appendChild(del);
+      }
+
+      const chips = document.createElement("div");
+      chips.className = "kit-chips";
+      grupo.forEach((termo, ti) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        const txt = document.createElement("span");
+        txt.textContent = termo;
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "chip-x";
+        x.textContent = "×";
+        x.setAttribute("aria-label", `Remover ${termo}`);
+        x.addEventListener("click", () => { grupo.splice(ti, 1); render(); });
+        chip.append(txt, x);
+        chips.appendChild(chip);
+      });
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "kit-input chip-input";
+      input.placeholder = grupo.length ? "+ E (termo ou frase)…" : "termo (ex.: Joinville)…";
+      input.autocomplete = "off";
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === ",") {
+          ev.preventDefault();
+          const v = input.value.replace(/,$/, "");
+          input.value = "";
+          adicionarTermo(gi, v);
+        } else if (ev.key === "Backspace" && !input.value && grupo.length) {
+          grupo.pop();
+          render();
+          focarKit(gi);
+        }
+      });
+      input.addEventListener("blur", () => {
+        if (input.value.trim()) adicionarTermo(gi, input.value);
+      });
+      chips.appendChild(input);
+      chips.addEventListener("click", () => input.focus());
+
+      kit.append(head, chips);
+      container.appendChild(kit);
+    });
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "kit-add";
+    add.textContent = "+ conjunto (OU)";
+    add.addEventListener("click", () => {
+      grupos.push([]);
+      render();
+      focarKit(grupos.length - 1);
+    });
+    container.appendChild(add);
+  }
+
+  function adicionarTermo(gi, valor) {
+    const limpo = String(valor || "").trim();
+    if (!limpo) return;
+    const grupo = grupos[gi];
+    if (grupo.some((t) => t.toLowerCase() === limpo.toLowerCase())) return;
+    grupo.push(limpo);
+    render();
+    focarKit(gi);
+  }
+
+  function focarKit(gi) {
+    const inputs = container.querySelectorAll(".kit .kit-input");
+    if (inputs[gi]) inputs[gi].focus();
+  }
+
+  render();
+  return {
+    get: () => grupos.map((g) => g.filter(Boolean)).filter((g) => g.length),
+    set: (novos) => {
+      grupos = (Array.isArray(novos) && novos.length)
+        ? novos.map((g) => (Array.isArray(g) ? [...g] : []))
+        : [[]];
+      if (!grupos.length) grupos = [[]];
+      render();
+    },
+  };
+}
+
+// Achata os grupos em termos únicos (para o destaque nos cards).
+function termosDeKits(grupos) {
+  const vistos = [];
+  for (const g of grupos || []) {
+    for (const t of g) {
+      if (!vistos.some((v) => v.toLowerCase() === t.toLowerCase())) vistos.push(t);
+    }
+  }
+  return vistos;
+}
+
+const kitsBusca = criarKits("kits-busca");
+const kitsConfig = criarKits("kits-config");
 const chipsEmails = criarChips("#chips-emails", "#inp-email", (v) => v.includes("@"));
 
 /* ------------------------------------------------------------ configuração */
@@ -179,9 +312,9 @@ async function carregarConfig() {
     const cfg = await chamarAPI("/config");
     estado.configCarregada = cfg;
     const v = cfg.varredura || {};
-    chipsBusca.set(v.palavras_chave || []);
-    chipsConfig.set(v.palavras_chave || []);
-    definirOperador(v.operador || "OU");
+    const grupos = (v.grupos && v.grupos.length) ? v.grupos : [];
+    kitsBusca.set(grupos);
+    kitsConfig.set(grupos);
     $("#chk-dou").checked = (v.fontes || {}).dou !== false;
     $("#chk-doesc").checked = (v.fontes || {}).doesc !== false;
     const r = cfg.relatorio || {};
@@ -189,7 +322,7 @@ async function carregarConfig() {
     $("#chk-resumo-ia").checked = !!r.resumo_ia;
     chipsEmails.set(r.destinatarios || []);
     $("#sel-horario").value = _horaCheia(r.horario || "07:00");
-    $("#hint-origem-config").hidden = !(v.palavras_chave || []).length;
+    $("#hint-origem-config").hidden = !grupos.length;
   } catch (e) {
     console.warn("Configuração indisponível (API offline?):", e.message);
   }
@@ -210,8 +343,7 @@ async function salvarConfig() {
       method: "POST",
       body: JSON.stringify({
         varredura: {
-          palavras_chave: chipsConfig.get(),
-          operador: estado.operador,
+          grupos: kitsConfig.get(),
           fontes: { dou: $("#chk-dou").checked, doesc: $("#chk-doesc").checked },
         },
         relatorio: coletarRelatorio(),
@@ -282,21 +414,6 @@ async function testarEmail() {
 }
 
 /* ---------------------------------------------------------------- operador */
-
-function definirOperador(op) {
-  estado.operador = op === "E" ? "E" : "OU";
-  document.querySelectorAll(".seg-btn").forEach((btn) => {
-    const ativo = btn.dataset.op === estado.operador;
-    btn.classList.toggle("is-active", ativo);
-    btn.setAttribute("aria-checked", String(ativo));
-  });
-}
-
-document.querySelectorAll(".seg-btn").forEach((btn) => {
-  btn.addEventListener("click", () => definirOperador(btn.dataset.op));
-});
-
-/* ------------------------------------------------------------------- busca */
 
 /* ----------------------------------------------------------------- loader */
 
@@ -374,11 +491,11 @@ async function executarVarredura() {
   }
 
   const dataISO = $("#inp-data").value || hojeISO();
-  const palavras = chipsBusca.get();
+  const grupos = kitsBusca.get();
 
-  if (!palavras.length) {
+  if (!grupos.length) {
     const ok = confirm(
-      "Nenhuma palavra-chave informada.\n\nA varredura retornará TODAS as " +
+      "Nenhum conjunto de busca informado.\n\nA varredura retornará TODAS as " +
       "publicações do dia (centenas de resultados). Continuar mesmo assim?"
     );
     if (!ok) return;
@@ -394,7 +511,7 @@ async function executarVarredura() {
   try {
     resposta = await chamarAPI("/buscar", {
       method: "POST",
-      body: JSON.stringify({ data: dataISO, palavras, operador: estado.operador, fontes }),
+      body: JSON.stringify({ data: dataISO, grupos, fontes }),
     });
   } catch (e) {
     loaderErro(e.message);
@@ -403,9 +520,9 @@ async function executarVarredura() {
   }
 
   estado.resultados = resposta.resultados || [];
-  estado.palavrasBusca = palavras;
+  estado.palavrasBusca = termosDeKits(grupos);
 
-  const params = { data: dataISO, palavras, operador: estado.operador, fontes };
+  const params = { data: dataISO, grupos, fontes };
   const iaAtiva = !!estado.configCarregada?.relatorio?.resumo_ia && estado.resultados.length > 0;
 
   // Com IA ligada, os resultados só aparecem QUANDO a síntese estiver pronta
@@ -433,8 +550,7 @@ async function executarVarredura() {
 async function obterSintese(params) {
   const assinatura = JSON.stringify({
     data: params.data,
-    palavras: [...params.palavras].sort(),
-    operador: params.operador,
+    grupos: params.grupos,
     fontes: params.fontes,
   });
   if (estado.sinteseCache[assinatura]) return estado.sinteseCache[assinatura];
@@ -746,7 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-csv").addEventListener("click", baixarCSV);
   $("#btn-fhir").addEventListener("click", baixarFHIR);
   $("#btn-salvar-config").addEventListener("click", salvarConfig);
-  $("#btn-usar-busca").addEventListener("click", () => chipsBusca.set(chipsConfig.get()));
+  $("#btn-usar-busca").addEventListener("click", () => kitsBusca.set(kitsConfig.get()));
   $("#btn-salvar-relatorio").addEventListener("click", salvarRelatorio);
   $("#btn-testar-email").addEventListener("click", testarEmail);
 

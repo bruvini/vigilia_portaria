@@ -51,35 +51,19 @@
         <span class="panel-line"></span>
       </div>
 
+      <div class="field kits-field">
+        <span class="field-label">
+          Conjuntos de busca
+          <small class="field-hint">termos no mesmo conjunto = <strong>E</strong> · entre conjuntos = <strong>OU</strong>
+          <span id="hint-origem-config" hidden>· carregados da configuração</span></small>
+        </span>
+        <div class="kits" id="kits-busca"></div>
+      </div>
+
       <div class="desk-top">
         <div class="field">
           <label class="field-label" for="inp-data">Edição de</label>
           <input type="date" id="inp-data" class="input-date">
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="inp-palavra">
-            Palavras-chave
-            <span class="field-hint" id="hint-origem-config" hidden>· carregadas da configuração</span>
-          </label>
-          <div class="chips" id="chips-busca">
-            <input type="text" id="inp-palavra" class="chip-input"
-                   placeholder="Digite um termo e pressione Enter…" autocomplete="off">
-          </div>
-        </div>
-      </div>
-
-      <div class="desk-controls">
-        <div class="control-block">
-          <span class="field-label">Operador lógico</span>
-          <div class="segmented" role="radiogroup" aria-label="Operador lógico">
-            <button type="button" class="seg-btn is-active" data-op="OU" role="radio" aria-checked="true">
-              OU <small>qualquer termo</small>
-            </button>
-            <button type="button" class="seg-btn" data-op="E" role="radio" aria-checked="false">
-              E <small>todos os termos</small>
-            </button>
-          </div>
         </div>
 
         <div class="control-block">
@@ -125,15 +109,14 @@
 
       <div class="config-grid">
         <div class="config-block">
-          <h4 class="config-block-title">Palavras-chave padrão</h4>
+          <h4 class="config-block-title">Conjuntos de busca padrão</h4>
           <p class="config-block-text">
-            Os termos abaixo ficam salvos na nuvem e preenchem automaticamente a
-            Mesa de Varredura em todo acesso — sem precisar digitar de novo.
+            Os conjuntos abaixo ficam salvos na nuvem e preenchem a Mesa de
+            Varredura em todo acesso. Termos no mesmo conjunto = <strong>E</strong>;
+            entre conjuntos = <strong>OU</strong>. Ex.: <em>Joinville E Hospital São José</em>
+            OU <em>Joinville E oncologia</em>.
           </p>
-          <div class="chips chips-config" id="chips-config">
-            <input type="text" id="inp-palavra-config" class="chip-input"
-                   placeholder="Adicionar termo padrão…" autocomplete="off">
-          </div>
+          <div class="kits kits-config" id="kits-config"></div>
           <div class="config-actions">
             <button type="button" class="btn-small" id="btn-salvar-config">Salvar configuração</button>
             <button type="button" class="btn-small btn-small-ghost" id="btn-usar-busca">Copiar p/ varredura atual</button>

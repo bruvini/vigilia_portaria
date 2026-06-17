@@ -48,7 +48,11 @@ from vigilia_core.email_sender import (
     remetente_formatado,
 )
 from vigilia_core.fhir import montar_bundle
-from vigilia_core.filtros import limpar_palavras, normalizar_operador
+from vigilia_core.filtros import (
+    grupos_de_legado,
+    grupos_para_termos,
+    limpar_grupos,
+)
 from vigilia_core.relatorio import gerar_relatorio_html
 
 initialize_app()
@@ -106,10 +110,15 @@ def _carregar_config(db) -> dict:
     doc_v = ref_v.get()
     if doc_v.exists:
         varredura = doc_v.to_dict()
+        # Migração: config antiga (palavras_chave + operador) → grupos (kits).
+        if not varredura.get("grupos"):
+            varredura["grupos"] = grupos_de_legado(
+                varredura.get("palavras_chave"),
+                varredura.get("operador", "OU"),
+            )
     else:
         varredura = {
-            "palavras_chave": config_padrao.PALAVRAS_PADRAO,
-            "operador": config_padrao.OPERADOR_PADRAO,
+            "grupos": config_padrao.GRUPOS_PADRAO,
             "fontes": config_padrao.FONTES_PADRAO,
             "atualizado_em": datetime.now(timezone.utc).isoformat(),
         }
@@ -125,20 +134,20 @@ def _carregar_config(db) -> dict:
     return {"varredura": varredura, "relatorio": relatorio}
 
 
-def _executar_varredura(data_publicacao: date, palavras, operador, fontes) -> dict:
+def _executar_varredura(data_publicacao: date, grupos, fontes) -> dict:
     resultados: list[dict] = []
     erros: list[str] = []
 
     if fontes.get("dou", True):
         try:
-            resultados.extend(buscar_dou_completo(data_publicacao, palavras, operador))
+            resultados.extend(buscar_dou_completo(data_publicacao, grupos))
         except Exception as e:
             logger.exception("Falha na varredura do DOU")
             erros.append(f"DOU: {e}")
 
     if fontes.get("doesc", True):
         try:
-            resultados.extend(buscar_doesc(data_publicacao, palavras, operador))
+            resultados.extend(buscar_doesc(data_publicacao, grupos))
         except Exception as e:
             logger.exception("Falha na varredura do DOE-SC")
             erros.append(f"DOE-SC: {e}")
@@ -158,19 +167,20 @@ def _executar_varredura(data_publicacao: date, palavras, operador, fontes) -> di
 
 def _montar_e_enviar_relatorio(
     db, destinatarios: list[str], data_pub: date,
-    palavras, operador, fontes, usar_ia: bool = False,
+    grupos, fontes, usar_ia: bool = False,
 ) -> dict:
     """Varre, opcionalmente resume com IA, envia o e-mail e registra o histórico."""
-    resultado = _executar_varredura(data_pub, palavras, operador, fontes)
+    resultado = _executar_varredura(data_pub, grupos, fontes)
+    termos = grupos_para_termos(grupos)
 
     resumo_ia = None
     if usar_ia:
         resumo_ia = ia.gerar_resumo(
-            resultado["resultados"], data_pub.strftime("%d/%m/%Y"), palavras
+            resultado["resultados"], data_pub.strftime("%d/%m/%Y"), termos
         )
 
     assunto, html_corpo = gerar_relatorio_html(
-        resultado["resultados"], data_pub, palavras, operador, resumo_ia=resumo_ia
+        resultado["resultados"], data_pub, termos, resumo_ia=resumo_ia
     )
     envio = enviar_email(destinatarios, assunto, html_corpo)
 
@@ -247,8 +257,7 @@ def _salvar_config(db, corpo: dict) -> https_fn.Response:
     if "varredura" in corpo:
         v = corpo["varredura"] or {}
         db.collection("config").document("varredura").set({
-            "palavras_chave": limpar_palavras(v.get("palavras_chave", [])),
-            "operador": normalizar_operador(v.get("operador", "OU")),
+            "grupos": limpar_grupos(v.get("grupos")),
             "fontes": {
                 "dou": bool((v.get("fontes") or {}).get("dou", True)),
                 "doesc": bool((v.get("fontes") or {}).get("doesc", True)),
@@ -280,19 +289,27 @@ def _rota_buscar(corpo: dict) -> https_fn.Response:
     except ValueError:
         return _erro(f"Data inválida: {data_str!r}. Use o formato AAAA-MM-DD.")
 
-    palavras = limpar_palavras(corpo.get("palavras", []))
-    operador = normalizar_operador(corpo.get("operador", "OU"))
+    grupos = _grupos_do_corpo(corpo)
     fontes = corpo.get("fontes") or {"dou": True, "doesc": True}
 
     if not fontes.get("dou") and not fontes.get("doesc"):
         return _erro("Selecione pelo menos uma fonte (dou e/ou doesc).")
 
-    resultado = _executar_varredura(data_publicacao, palavras, operador, fontes)
+    resultado = _executar_varredura(data_publicacao, grupos, fontes)
     resultado["parametros"] = {
-        "data": data_str, "palavras": palavras,
-        "operador": operador, "fontes": fontes,
+        "data": data_str, "grupos": grupos, "fontes": fontes,
     }
     return _json_response(resultado)
+
+
+def _grupos_do_corpo(corpo: dict) -> list:
+    """
+    Extrai os kits do corpo da requisição. Aceita `grupos` (novo modelo) ou,
+    por compatibilidade, `palavras` + `operador` (modelo antigo).
+    """
+    if corpo.get("grupos") is not None:
+        return limpar_grupos(corpo.get("grupos"))
+    return grupos_de_legado(corpo.get("palavras"), corpo.get("operador", "OU"))
 
 
 def _rota_sintese(corpo: dict) -> https_fn.Response:
@@ -300,8 +317,8 @@ def _rota_sintese(corpo: dict) -> https_fn.Response:
     Gera a síntese por IA dos resultados já exibidos no painel (não-bloqueante:
     o site mostra os cards na hora e busca a síntese em seguida).
 
-    Cacheia por assinatura da busca (data + termos + operador + fontes) na
-    coleção `sinteses`, evitando custo repetido na mesma consulta.
+    Cacheia por assinatura da busca (data + kits + fontes) na coleção
+    `sinteses`, evitando custo repetido na mesma consulta.
     """
     if not ia.resumo_disponivel():
         return _json_response({"sintese": None, "motivo": "ia_indisponivel"})
@@ -316,14 +333,13 @@ def _rota_sintese(corpo: dict) -> https_fn.Response:
     except ValueError:
         return _erro(f"Data inválida: {data_str!r}. Use AAAA-MM-DD.")
 
-    palavras = limpar_palavras(corpo.get("palavras", []))
-    operador = normalizar_operador(corpo.get("operador", "OU"))
+    grupos = _grupos_do_corpo(corpo)
+    termos = grupos_para_termos(grupos)
     fontes = corpo.get("fontes") or {}
 
     import hashlib
     assinatura = json.dumps(
-        {"data": data_str, "palavras": sorted(palavras),
-         "operador": operador, "fontes": fontes},
+        {"data": data_str, "grupos": grupos, "fontes": fontes},
         sort_keys=True, ensure_ascii=False,
     )
     chave = hashlib.sha1(assinatura.encode("utf-8")).hexdigest()
@@ -337,7 +353,7 @@ def _rota_sintese(corpo: dict) -> https_fn.Response:
         if doc.exists and doc.to_dict().get("texto"):
             return _json_response({"sintese": doc.to_dict()["texto"], "cache": True})
 
-    texto = ia.gerar_resumo(resultados, data_pub.strftime("%d/%m/%Y"), palavras, modelo=modelo)
+    texto = ia.gerar_resumo(resultados, data_pub.strftime("%d/%m/%Y"), termos, modelo=modelo)
     if texto and not modelo:
         ref.set({
             "texto": texto,
@@ -375,8 +391,7 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
     try:
         resumo = _montar_e_enviar_relatorio(
             db, destinatarios, data_pub,
-            cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
-            "E",  # o relatório por e-mail SEMPRE usa o operador E (todos os termos)
+            cfg_v.get("grupos", config_padrao.GRUPOS_PADRAO),
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
             usar_ia=usar_ia,
         )
@@ -445,8 +460,7 @@ def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
     try:
         resumo = _montar_e_enviar_relatorio(
             db, destinatarios, data_ref,
-            cfg_v.get("palavras_chave", config_padrao.PALAVRAS_PADRAO),
-            "E",  # o relatório por e-mail SEMPRE usa o operador E (todos os termos)
+            cfg_v.get("grupos", config_padrao.GRUPOS_PADRAO),
             cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
             usar_ia=bool(cfg_r.get("resumo_ia", False)),
         )

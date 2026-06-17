@@ -102,7 +102,7 @@ def test_relatorio_com_resumo_ia_renderiza_markdown():
         "* 🟡 **Volume:** 1 publicação.\n"
         "* **Foco Principal:** repasse para Joinville."
     )
-    _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"], "OU",
+    _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"],
                                     resumo_ia=md)
     assert "Panorama do Dia" in corpo            # heading ## renderizado
     assert "<strong>Volume:</strong>" in corpo   # **negrito** → <strong>
@@ -111,7 +111,7 @@ def test_relatorio_com_resumo_ia_renderiza_markdown():
 
 
 def test_relatorio_sem_resumo_ia_omite_bloco():
-    _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"], "OU")
+    _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"])
     assert "Resumo gerado" not in corpo           # bloco de IA ausente
 
 

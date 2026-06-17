@@ -31,13 +31,42 @@ logger = logging.getLogger("vigilia.ia")
 MODELO_PADRAO = "gemini-2.5-flash"
 
 # Limita o volume enviado ao modelo (controle de custo/latência).
-MAX_PUBLICACOES_NO_PROMPT = 60
+MAX_PUBLICACOES_NO_PROMPT = 150
 MAX_CHARS_POR_PUBLICACAO = 600
 
 
 def resumo_disponivel() -> bool:
     """True somente se houver API key configurada (secret GEMINI_API_KEY)."""
     return bool(os.environ.get("GEMINI_API_KEY", "").strip())
+
+
+def _amostra_balanceada(resultados: list[dict], limite: int) -> list[dict]:
+    """
+    Seleciona até `limite` publicações intercalando as fontes (round-robin por
+    'origem'), para que DOU e DOE-SC fiquem ambos representados mesmo quando há
+    muito mais de uma fonte (antes o corte simples pegava só as primeiras, que
+    eram todas do DOU).
+    """
+    if len(resultados) <= limite:
+        return resultados
+
+    por_origem: dict[str, list[dict]] = {}
+    for r in resultados:
+        por_origem.setdefault(r.get("origem", "?"), []).append(r)
+
+    amostra: list[dict] = []
+    filas = list(por_origem.values())
+    i = 0
+    while len(amostra) < limite and any(filas):
+        fila = filas[i % len(filas)]
+        if fila:
+            amostra.append(fila.pop(0))
+        i += 1
+        if i % len(filas) == 0:
+            filas = [f for f in filas if f]
+            if not filas:
+                break
+    return amostra
 
 
 SYSTEM_INSTRUCTION = (
@@ -55,46 +84,63 @@ SYSTEM_INSTRUCTION = (
     "3. Seja conciso. Elimine jargões repetitivos (\"Vale verificar\", "
     "\"Relevante para a rede\"). Vá direto ao ponto técnico.\n"
     "4. Se houver prazos na publicação, force o destaque visual deles.\n\n"
+    "REGRAS DE NEGÓCIO (aplique ANTES de escrever):\n"
+    "A) VALIDAÇÃO CRUZADA: só trate como relevante a publicação que una um termo "
+    "geográfico (Joinville/SC) a um termo técnico de saúde (saúde, portaria, "
+    "SIGTAP, CACON, oncologia, Agora Tem Especialistas, Hospital São José, "
+    "Bethesda, habilitação, repasse, custeio etc.). Cite o que de fato impacta a "
+    "gestão municipal de saúde.\n"
+    "B) ELIMINAÇÃO DE RUÍDO: ignore por completo editais de trânsito (DETRAN), "
+    "suspensão do direito de dirigir, citações/intimações judiciais de terceiros, "
+    "leilões, licenças ambientais industriais e infrações — mesmo que a palavra "
+    "\"Joinville\" apareça no texto.\n"
+    "C) AGRUPAMENTO/CONSOLIDAÇÃO: se houver vários atos sobre o MESMO programa ou "
+    "assunto na edição (ex.: várias portarias do \"Agora Tem Especialistas\"), "
+    "NÃO crie um bloco para cada um. Agrupe todos em UM bloco consolidado, liste "
+    "os números das portarias em sequência e sintetize o impacto coletivo.\n\n"
     "ESTRUTURA DO OUTPUT (TEMPLATE):\n\n"
     "✦ **Vigília IA · Análise de Impacto**\n\n"
     "## 📊 Panorama do Dia\n"
-    "* [Emoji de status: 🟢 Baixo | 🟡 Moderado | 🔴 Crítico] **Volume:** [X] "
-    "publicações analisadas na edição.\n"
+    "* [🟢 Baixo | 🟡 Moderado | 🔴 Crítico] **Volume:** [X] publicações "
+    "analisadas na edição.\n"
     "* **Foco Principal:** [Frase única resumindo o principal acontecimento do "
-    "dia, ex: \"Forte movimentação de repasses de custeio e habilitações de "
-    "leitos\"].\n\n"
+    "dia].\n\n"
     "## 🎯 Atos de Alto Impacto (Joinville)\n"
-    "[Para cada portaria/ato relevante para o município, use a estrutura abaixo. "
-    "Ordene por impacto financeiro ou urgência legal]\n"
-    "### 🔹 [NÚMERO DO ATO / ÓRGÃO] — [Resumo Técnico do Objeto em até 5 "
-    "palavras]\n"
-    "* 💰 **Impacto:** [Se financeiro: \"Repasse estimado de R$ X\" ou \"Desconto "
-    "de R$ X via FAEC\". Se regulatório: \"Adesão/Habilitação de serviços\"].\n"
-    "* 🔍 **O que diz o texto:** [1 ou 2 frases curtas explicando a essência do "
-    "ato, sem enrolação].\n"
-    "* ⏳ **Prazo:** [Se houver: \"Até DD/MM/AAAA\" ou \"Imediato\". Se não "
-    "houver, omitir esta linha].\n\n"
+    "[Use UM bloco CONSOLIDADO quando vários atos tratarem do mesmo tema; use um "
+    "bloco individual para atos isolados. Ordene por impacto financeiro ou "
+    "urgência legal.]\n\n"
+    "### 🚨 [CONSOLIDADO] [Nome do Programa/Tema]\n"
+    "* 📋 **Atos relacionados:** Portarias nº X, Y, Z… (liste todos os números).\n"
+    "* 🏛️ **Órgão emissor:** [órgão].\n"
+    "* 💰 **Impacto:** [coletivo; se valores estiverem só nos anexos, diga isso].\n"
+    "* 🔍 **Resumo:** [o que o conjunto de atos faz e por que importa].\n"
+    "* ⏳ **Prazo:** [se houver; senão omitir].\n\n"
+    "### 🔹 [NÚMERO DO ATO / ÓRGÃO] — [Resumo Técnico em até 5 palavras]\n"
+    "* 💰 **Impacto:** [Se financeiro: \"Repasse estimado de R$ X\". Se "
+    "regulatório: \"Adesão/Habilitação de serviços\"].\n"
+    "* 🔍 **O que diz o texto:** [1 ou 2 frases curtas, sem enrolação].\n"
+    "* ⏳ **Prazo:** [Se houver: \"Até DD/MM/AAAA\" ou \"Imediato\"; senão "
+    "omitir].\n\n"
     "## ⚡ Próximos Passos Recomendados\n"
-    "[Gere uma lista de tarefas direta e imperativa com os responsáveis "
-    "prováveis]\n"
-    "* ▢ **[Setor Destino, ex: Financeiro/Contratos]:** [Ação verbal clara, ex: "
-    "Verificar enquadramento de Joinville nos critérios do Anexo X da Portaria "
-    "11.505] - *Motivo: Risco de perda de prazo/recurso.*\n"
+    "* ▢ **[Setor Destino, ex: Financeiro/Contratos]:** [Ação verbal clara] - "
+    "*Motivo: [risco/oportunidade].*\n"
     "* ▢ **[Setor Destino, ex: Regulação/Gestão]:** [Ação verbal clara]\n\n"
     "REGRAS DE RESTRIÇÃO ABSOLUTA\n"
-    "- Se nenhuma publicação impactar diretamente o município ou as regras de "
-    "negócio configuradas, o output deve ser ESTRITAMENTE: \"✦ **Vigília IA:** "
-    "Nenhuma publicação de alto impacto ou com potencial de repasse financeiro "
-    "foi identificada nesta edição para os termos monitorados.\"\n"
+    "- Se, após a validação cruzada e a eliminação de ruído, nenhuma publicação "
+    "impactar diretamente o município, o output deve ser ESTRITAMENTE: \"✦ "
+    "**Vigília IA:** Nenhuma publicação de alto impacto ou com potencial de "
+    "repasse financeiro foi identificada nesta edição para os termos "
+    "monitorados.\"\n"
     "- Nunca invente valores. Se o valor do repasse para o município não estiver "
-    "explícito no texto ou nos anexos processados, escreva: \"💰 **Impacto:** "
-    "Repasse financeiro (valor sob consulta nos anexos do ato)\"."
+    "explícito no texto ou nos anexos, escreva: \"💰 **Impacto:** Repasse "
+    "financeiro (valor sob consulta nos anexos do ato)\"."
 )
 
 
 def _montar_prompt(resultados: list[dict], data_br: str, palavras: list[str]) -> str:
+    amostra = _amostra_balanceada(resultados, MAX_PUBLICACOES_NO_PROMPT)
     linhas = []
-    for i, r in enumerate(resultados[:MAX_PUBLICACOES_NO_PROMPT], 1):
+    for i, r in enumerate(amostra, 1):
         corpo = (r.get("resumo") or r.get("descricao") or "")[:MAX_CHARS_POR_PUBLICACAO]
         origem = r.get("origem", "")
         link = r.get("link", "")
