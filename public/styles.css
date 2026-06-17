@@ -356,87 +356,103 @@ body::before {
 
 .chip-input::placeholder { color: var(--ink-mute); }
 
-/* ---- kits (conjuntos de busca) ---- */
+/* ---- kits (conjuntos de busca) — layout compacto em linha/wrap ---- */
 .kits-field { margin-bottom: 1.4rem; }
 
 .kits {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 .kit {
+  position: relative;
+  flex: 1 1 230px;
+  max-width: 340px;
+  min-width: 0;
   border: 1px solid var(--hairline);
-  border-left: 3px solid var(--brand-deep);
+  border-top: 2px solid var(--brand-deep);
   background: var(--paper);
-  padding: 0.7rem 0.9rem 0.8rem 0.9rem;
-}
-
-.kit-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
+  padding: 0.35rem 0.5rem 0.45rem 0.5rem;
 }
 
 .kit-label {
+  display: block;
   font-family: var(--font-mono);
-  font-size: 0.64rem;
+  font-size: 0.56rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--brand-deep);
+  margin-bottom: 0.3rem;
+  padding-right: 1rem;          /* espaço para o × */
 }
 
 .kit-del {
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  position: absolute;
+  top: 0.15rem;
+  right: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.95rem;
+  line-height: 1;
   color: var(--ink-mute);
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.1rem 0.3rem;
-  transition: color 0.2s;
+  border-radius: 3px;
+  transition: color 0.2s, background 0.2s;
 }
 
-.kit-del:hover { color: #b91c1c; }
+.kit-del:hover { color: #b91c1c; background: rgba(185, 28, 28, 0.08); }
 
 .kit-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
   cursor: text;
 }
 
-.kit-input { min-width: 150px; }
+.kit-chips .chip {
+  font-size: 0.74rem;
+  padding: 0.18rem 0.3rem 0.18rem 0.5rem;
+}
+
+.kit-input {
+  min-width: 80px;
+  flex: 1 1 80px;
+  font-size: 0.84rem;
+  padding: 0.2rem 0.1rem;
+}
 
 .kit-ou {
-  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  align-self: center;
   font-family: var(--font-display);
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--ink-mute);
-  letter-spacing: 0.05em;
-  padding: 0.35rem 0 0.35rem 0.9rem;
-  position: relative;
+  letter-spacing: 0.04em;
+  padding: 0 0.1rem;
 }
 
 .kit-add {
-  align-self: flex-start;
-  margin-top: 0.7rem;
+  flex: 0 0 auto;
+  align-self: center;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--brand-deep);
   background: transparent;
   border: 1px dashed var(--hairline);
-  padding: 0.5rem 0.9rem;
+  padding: 0.45rem 0.7rem;
   cursor: pointer;
+  white-space: nowrap;
   transition: border-color 0.2s, color 0.2s, background 0.2s;
 }
 

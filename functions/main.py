@@ -102,6 +102,25 @@ def _db():
     return firestore.client()
 
 
+# O Firestore NÃO aceita arrays aninhados (lista de listas). Os kits, que são
+# list[list[str]], são persistidos como lista de objetos {"termos": [...]} e
+# reconvertidos para o array aninhado esperado pela API/SPA na leitura.
+
+def _grupos_para_firestore(grupos: list) -> list[dict]:
+    return [{"termos": list(g)} for g in limpar_grupos(grupos)]
+
+
+def _grupos_de_firestore(valor) -> list[list[str]]:
+    """Aceita o formato novo (lista de {termos}), o legado (array aninhado) ou vazio."""
+    grupos: list = []
+    for item in valor or []:
+        if isinstance(item, dict):
+            grupos.append(item.get("termos") or [])
+        elif isinstance(item, list):
+            grupos.append(item)
+    return limpar_grupos(grupos)
+
+
 def _carregar_config(db) -> dict:
     """Lê a configuração do Firestore, criando os padrões na primeira leitura."""
     ref_v = db.collection("config").document("varredura")
@@ -110,19 +129,22 @@ def _carregar_config(db) -> dict:
     doc_v = ref_v.get()
     if doc_v.exists:
         varredura = doc_v.to_dict()
-        # Migração: config antiga (palavras_chave + operador) → grupos (kits).
-        if not varredura.get("grupos"):
-            varredura["grupos"] = grupos_de_legado(
+        grupos = _grupos_de_firestore(varredura.get("grupos"))
+        if not grupos:
+            # Migração: config antiga (palavras_chave + operador) → grupos (kits).
+            grupos = grupos_de_legado(
                 varredura.get("palavras_chave"),
                 varredura.get("operador", "OU"),
             )
+        varredura["grupos"] = grupos  # API/SPA recebem o array aninhado
     else:
-        varredura = {
-            "grupos": config_padrao.GRUPOS_PADRAO,
+        grupos = config_padrao.GRUPOS_PADRAO
+        ref_v.set({
+            "grupos": _grupos_para_firestore(grupos),
             "fontes": config_padrao.FONTES_PADRAO,
             "atualizado_em": datetime.now(timezone.utc).isoformat(),
-        }
-        ref_v.set(varredura)
+        })
+        varredura = {"grupos": grupos, "fontes": config_padrao.FONTES_PADRAO}
 
     doc_r = ref_r.get()
     if doc_r.exists:
@@ -260,7 +282,7 @@ def _salvar_config(db, corpo: dict) -> https_fn.Response:
     if "varredura" in corpo:
         v = corpo["varredura"] or {}
         db.collection("config").document("varredura").set({
-            "grupos": limpar_grupos(v.get("grupos")),
+            "grupos": _grupos_para_firestore(v.get("grupos")),
             "fontes": {
                 "dou": bool((v.get("fontes") or {}).get("dou", True)),
                 "doesc": bool((v.get("fontes") or {}).get("doesc", True)),

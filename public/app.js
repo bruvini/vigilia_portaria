@@ -187,23 +187,24 @@ function criarKits(containerId) {
       const kit = document.createElement("div");
       kit.className = "kit";
 
-      const head = document.createElement("div");
-      head.className = "kit-head";
       const label = document.createElement("span");
       label.className = "kit-label";
-      label.textContent = "contém todos (E)";
-      head.appendChild(label);
+      label.textContent = "todos (E)";
+      kit.appendChild(label);
+
       if (grupos.length > 1) {
         const del = document.createElement("button");
         del.type = "button";
         del.className = "kit-del";
-        del.textContent = "remover";
+        del.textContent = "×";
+        del.title = "Remover conjunto";
+        del.setAttribute("aria-label", "Remover conjunto");
         del.addEventListener("click", () => {
           grupos.splice(gi, 1);
           if (!grupos.length) grupos = [[]];
           render();
         });
-        head.appendChild(del);
+        kit.appendChild(del);
       }
 
       const chips = document.createElement("div");
@@ -246,7 +247,7 @@ function criarKits(containerId) {
       chips.appendChild(input);
       chips.addEventListener("click", () => input.focus());
 
-      kit.append(head, chips);
+      kit.appendChild(chips);
       container.appendChild(kit);
     });
 
