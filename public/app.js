@@ -522,7 +522,7 @@ async function executarVarredura() {
   estado.resultados = resposta.resultados || [];
   estado.palavrasBusca = termosDeKits(grupos);
 
-  const params = { data: dataISO, grupos, fontes };
+  const params = { data: dataISO, grupos, fontes, avisos: resposta.avisos || [] };
   const iaAtiva = !!estado.configCarregada?.relatorio?.resumo_ia && estado.resultados.length > 0;
 
   // Com IA ligada, os resultados só aparecem QUANDO a síntese estiver pronta

@@ -271,8 +271,15 @@ def eh_ruido(registro: dict) -> bool:
 # HTTP
 # ---------------------------------------------------------------------------
 
-def criar_sessao(total_retries: int = 2, backoff: float = 0.5) -> requests.Session:
-    """Sessão requests com User-Agent institucional e retry com backoff."""
+def criar_sessao(
+    total_retries: int = 2,
+    backoff: float = 0.5,
+    pool_maxsize: int = 10,
+) -> requests.Session:
+    """
+    Sessão requests com User-Agent institucional e retry com backoff.
+    `pool_maxsize` controla o pool de conexões (útil para scraping paralelo).
+    """
     sessao = requests.Session()
     sessao.headers.update({"User-Agent": USER_AGENT})
     retry = Retry(
@@ -281,7 +288,11 @@ def criar_sessao(total_retries: int = 2, backoff: float = 0.5) -> requests.Sessi
         status_forcelist=(429, 500, 502, 503, 504),
         allowed_methods=("GET", "POST"),
     )
-    adapter = HTTPAdapter(max_retries=retry)
+    adapter = HTTPAdapter(
+        max_retries=retry,
+        pool_connections=pool_maxsize,
+        pool_maxsize=pool_maxsize,
+    )
     sessao.mount("https://", adapter)
     sessao.mount("http://", adapter)
     return sessao

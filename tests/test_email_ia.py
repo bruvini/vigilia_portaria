@@ -138,19 +138,27 @@ def test_ia_disponivel_com_key():
 
 def test_ia_prompt_inclui_publicacoes_e_total():
     prompt = ia._montar_prompt([_ato(), _ato("DOE-SC")], "09/06/2026", ["saúde"])
-    assert "PORTARIA X" in prompt                              # publicação
-    assert "saúde" in prompt                                   # termo monitorado
-    assert "TOTAL DE PUBLICAÇÕES ENCONTRADAS: 2" in prompt     # contagem
-    assert "use o total real de 2" in prompt
+    assert "PORTARIA X" in prompt                          # publicação
+    assert "saúde" in prompt                               # termo monitorado
+    assert "TOTAL DE PUBLICAÇÕES VARRIDAS: 2" in prompt    # contagem
+    assert "de um total de 2 varridos" in prompt
 
 
-def test_ia_system_instruction_template_e_restricao():
+def test_ia_prompt_avisa_dados_parciais():
+    prompt = ia._montar_prompt([_ato()], "09/06/2026", [], avisos=["timeout no DOU"])
+    assert "DADOS PARCIAIS" in prompt and "timeout no DOU" in prompt
+
+
+def test_ia_system_instruction_triagem_e_restricao():
     si = ia.SYSTEM_INSTRUCTION
-    # seções do template
-    for secao in ("Panorama do Dia", "Atos de Alto Impacto", "Próximos Passos"):
+    for secao in ("Panorama do Dia", "Atos Relevantes para Convênios", "Próximos Passos"):
         assert secao in si
     assert "Vigília IA" in si
+    # diretriz de triagem/descarte e critérios de inclusão
+    assert "TRIAGEM E DESCARTE" in si
+    assert "CRITÉRIOS DE INCLUSÃO" in si
+    assert "Recursos Humanos" in si           # descarte de atos de pessoal
     # regra de restrição absoluta (quando nada relevante)
     assert "Nenhuma publicação de alto impacto" in si
     # regra de não inventar valores
-    assert "valor sob consulta nos anexos do ato" in si
+    assert "Valor sob consulta nos anexos do ato" in si

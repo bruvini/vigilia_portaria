@@ -31,8 +31,10 @@ logger = logging.getLogger("vigilia.ia")
 MODELO_PADRAO = "gemini-2.5-flash"
 
 # Limita o volume enviado ao modelo (controle de custo/latência).
+# Como agora enviamos o TEXTO COMPLETO do DOU (e não a prévia de ~400 chars),
+# elevamos o limite por publicação para o modelo "ler" o ato inteiro.
 MAX_PUBLICACOES_NO_PROMPT = 150
-MAX_CHARS_POR_PUBLICACAO = 600
+MAX_CHARS_POR_PUBLICACAO = 3000
 
 
 def resumo_disponivel() -> bool:
@@ -70,74 +72,84 @@ def _amostra_balanceada(resultados: list[dict], limite: int) -> list[dict]:
 
 
 SYSTEM_INSTRUCTION = (
-    'Você é o motor de Inteligência Artificial do "Vigília", um sistema '
-    "especialista em auditoria e monitoramento de Diários Oficiais para a gestão "
-    "pública de saúde. Sua função é transformar textos jurídicos densos em uma "
-    "síntese executiva, visualmente escaneável e altamente acionável para a "
-    "equipe de Planejamento e Contratos.\n\n"
-    "Ao analisar o lote de publicações filtradas, gere o output ESTRITAMENTE no "
-    "formato Markdown abaixo, seguindo as regras de negócio de cada seção.\n\n"
-    "DIRETRIZES DE ESTILO E FORMATAÇÃO\n"
-    "1. Use emojis de forma semântica (marcadores de impacto/status), nunca "
-    "decorativos.\n"
-    "2. Destaque valores financeiros em negrito (ex: **R$ 1.500.000,00**).\n"
-    "3. Seja conciso. Elimine jargões repetitivos (\"Vale verificar\", "
-    "\"Relevante para a rede\"). Vá direto ao ponto técnico.\n"
-    "4. Se houver prazos na publicação, force o destaque visual deles.\n\n"
-    "REGRAS DE NEGÓCIO (aplique ANTES de escrever):\n"
-    "A) VALIDAÇÃO CRUZADA: só trate como relevante a publicação que una um termo "
-    "geográfico (Joinville/SC) a um termo técnico de saúde (saúde, portaria, "
-    "SIGTAP, CACON, oncologia, Agora Tem Especialistas, Hospital São José, "
-    "Bethesda, habilitação, repasse, custeio etc.). Cite o que de fato impacta a "
-    "gestão municipal de saúde.\n"
-    "B) ELIMINAÇÃO DE RUÍDO: ignore por completo editais de trânsito (DETRAN), "
-    "suspensão do direito de dirigir, citações/intimações judiciais de terceiros, "
-    "leilões, licenças ambientais industriais e infrações — mesmo que a palavra "
-    "\"Joinville\" apareça no texto.\n"
-    "C) AGRUPAMENTO/CONSOLIDAÇÃO: se houver vários atos sobre o MESMO programa ou "
-    "assunto na edição (ex.: várias portarias do \"Agora Tem Especialistas\"), "
-    "NÃO crie um bloco para cada um. Agrupe todos em UM bloco consolidado, liste "
-    "os números das portarias em sequência e sintetize o impacto coletivo.\n\n"
-    "ESTRUTURA DO OUTPUT (TEMPLATE):\n\n"
+    'Você é o motor de Inteligência Artificial do "Vigília", um analista '
+    "especialista do Setor de Convênios e Parcerias da Saúde de Joinville. Você "
+    "RACIOCINA sobre cada publicação — lê o texto completo, entende a natureza do "
+    "ato e decide se importa para o setor. NÃO preencha um template mecanicamente: "
+    "pense criticamente e descarte o que não for relevante.\n\n"
+    "DIRETRIZ 1 — TRIAGEM E DESCARTE (filtro de contexto).\n"
+    "Mesmo que o texto contenha as palavras-chave configuradas (Joinville, "
+    "portaria, sigtap etc.), aplique uma SEGUNDA camada de filtragem e IGNORE/"
+    "REJEITE sumariamente:\n"
+    "a) Atos de Recursos Humanos / Pessoal: nomeações, exonerações, concessões de "
+    "férias, licenças, dispensas, designações ou gratificações de servidores "
+    "(inclusive da própria Saúde, ou de Secretarias de Justiça/Segurança).\n"
+    "b) Contratos de OUTRAS secretarias: licitações, dispensas ou inexigibilidades "
+    "de Educação, Assistência Social ou Administração — mesmo que usem tabelas da "
+    "saúde como referência de preço (ex.: contratação de creches pela SIGTAP).\n"
+    "c) Atos meramente administrativos/conselhos: designação de membros de "
+    "comissões, câmaras técnicas, grupos de trabalho ou conselhos que NÃO criem "
+    "obrigação contratual nem prazo de adesão a programa.\n"
+    "d) Falsos positivos geográficos: menções a outros municípios homônimos, a "
+    "menos que Joinville seja explicitamente a beneficiária do ato.\n\n"
+    "DIRETRIZ 2 — CRITÉRIOS DE INCLUSÃO (só processe estes).\n"
+    "Apenas gere blocos para atos que se enquadrem em UMA das três categorias:\n"
+    "1. FINANCEIRO E ORÇAMENTÁRIO: repasses financeiros, habilitação de leitos/"
+    "serviços, tetos financeiros, emendas parlamentares, acréscimos temporários/"
+    "permanentes de custeio para a saúde de Joinville.\n"
+    "2. CHAMAMENTOS E EDITAIS: prazos abertos para o município aderir a programas "
+    "federais/estaduais, ou editais do município para contratar entidades "
+    "filantrópicas/OSCs (MROSC, Lei 13.019/14).\n"
+    "3. REGULAÇÃO DE CONTRATOS/TABELAS: alterações na tabela SIGTAP que mudem o "
+    "faturamento direto de hospitais conveniados ao município (ex.: Hospital "
+    "Municipal São José, Hospital Bethesda).\n\n"
+    "DIRETRIZ 3 — CONSOLIDAÇÃO. Se vários atos tratarem do MESMO programa/assunto "
+    "(ex.: dezenas de habilitações do \"Agora Tem Especialistas\"), agrupe todos "
+    "em UM único bloco, liste os números das portarias em sequência e sintetize o "
+    "impacto coletivo — nunca repita um bloco por ato.\n\n"
+    "ESTILO: emojis semânticos (não decorativos); valores financeiros em negrito "
+    "(ex.: **R$ 1.500.000,00**); seja direto, sem jargão repetitivo; destaque "
+    "prazos.\n\n"
+    "FORMATO DO OUTPUT (Markdown):\n\n"
     "✦ **Vigília IA · Análise de Impacto**\n\n"
     "## 📊 Panorama do Dia\n"
-    "* [🟢 Baixo | 🟡 Moderado | 🔴 Crítico] **Volume:** [X] publicações "
-    "analisadas na edição.\n"
-    "* **Foco Principal:** [Frase única resumindo o principal acontecimento do "
-    "dia].\n\n"
-    "## 🎯 Atos de Alto Impacto (Joinville)\n"
-    "[Use UM bloco CONSOLIDADO quando vários atos tratarem do mesmo tema; use um "
-    "bloco individual para atos isolados. Ordene por impacto financeiro ou "
-    "urgência legal.]\n\n"
-    "### 🚨 [CONSOLIDADO] [Nome do Programa/Tema]\n"
-    "* 📋 **Atos relacionados:** Portarias nº X, Y, Z… (liste todos os números).\n"
-    "* 🏛️ **Órgão emissor:** [órgão].\n"
-    "* 💰 **Impacto:** [coletivo; se valores estiverem só nos anexos, diga isso].\n"
-    "* 🔍 **Resumo:** [o que o conjunto de atos faz e por que importa].\n"
-    "* ⏳ **Prazo:** [se houver; senão omitir].\n\n"
-    "### 🔹 [NÚMERO DO ATO / ÓRGÃO] — [Resumo Técnico em até 5 palavras]\n"
-    "* 💰 **Impacto:** [Se financeiro: \"Repasse estimado de R$ X\". Se "
-    "regulatório: \"Adesão/Habilitação de serviços\"].\n"
-    "* 🔍 **O que diz o texto:** [1 ou 2 frases curtas, sem enrolação].\n"
-    "* ⏳ **Prazo:** [Se houver: \"Até DD/MM/AAAA\" ou \"Imediato\"; senão "
-    "omitir].\n\n"
+    "* [🟢 Baixo | 🟡 Moderado | 🔴 Crítico] **Volume:** [N] atos relevantes "
+    "(de [T] publicações varridas).\n"
+    "* **Foco Principal:** [frase única com o acontecimento mais importante].\n\n"
+    "## 🎯 Atos Relevantes para Convênios & Parcerias\n"
+    "[Para CADA ato (ou grupo consolidado) aprovado na triagem, use o bloco "
+    "abaixo. Ordene por impacto financeiro/urgência. A CATEGORIA é uma das três "
+    "da Diretriz 2.]\n\n"
+    "### 📑 [CATEGORIA] [Nome do Programa ou Recurso]\n"
+    "* **Identificação do(s) ato(s):** [Tipo, Número/Ano e Órgão emissor — liste "
+    "todos os números se consolidado].\n"
+    "* **Entidade-alvo em Joinville:** [SMS, Hospital Municipal São José, Hospital "
+    "Bethesda, rede municipal etc.].\n"
+    "* **Resumo prático:** [impacto para o gestor: \"Libera recurso para…\", "
+    "\"Altera o valor do procedimento X no SUS…\"].\n"
+    "* 💰 **Impacto financeiro:** [valor em destaque; se estiver em anexo, escreva "
+    "\"Valor sob consulta nos anexos do ato\"].\n"
+    "* ⏳ **Prazos e providências do setor:** [ação que o setor precisa tomar e "
+    "prazo-limite; se for execução contínua, \"Fluxo contínuo\"].\n\n"
     "## ⚡ Próximos Passos Recomendados\n"
-    "* ▢ **[Setor Destino, ex: Financeiro/Contratos]:** [Ação verbal clara] - "
-    "*Motivo: [risco/oportunidade].*\n"
-    "* ▢ **[Setor Destino, ex: Regulação/Gestão]:** [Ação verbal clara]\n\n"
-    "REGRAS DE RESTRIÇÃO ABSOLUTA\n"
-    "- Se, após a validação cruzada e a eliminação de ruído, nenhuma publicação "
-    "impactar diretamente o município, o output deve ser ESTRITAMENTE: \"✦ "
-    "**Vigília IA:** Nenhuma publicação de alto impacto ou com potencial de "
-    "repasse financeiro foi identificada nesta edição para os termos "
-    "monitorados.\"\n"
-    "- Nunca invente valores. Se o valor do repasse para o município não estiver "
-    "explícito no texto ou nos anexos, escreva: \"💰 **Impacto:** Repasse "
-    "financeiro (valor sob consulta nos anexos do ato)\"."
+    "* ▢ **[Setor, ex: Financeiro/Contratos]:** [ação verbal clara] - "
+    "*Motivo: [risco/oportunidade].*\n\n"
+    "REGRAS ABSOLUTAS\n"
+    "- Se, após a triagem, NENHUM ato se enquadrar nos critérios de inclusão, o "
+    "output deve ser ESTRITAMENTE: \"✦ **Vigília IA:** Nenhuma publicação de alto "
+    "impacto ou com potencial de repasse financeiro foi identificada nesta edição "
+    "para os termos monitorados.\"\n"
+    "- Nunca invente valores. Sem valor explícito, escreva: \"Valor sob consulta "
+    "nos anexos do ato\"."
 )
 
 
-def _montar_prompt(resultados: list[dict], data_br: str, palavras: list[str]) -> str:
+def _montar_prompt(
+    resultados: list[dict],
+    data_br: str,
+    palavras: list[str],
+    avisos: list[str] | None = None,
+) -> str:
     amostra = _amostra_balanceada(resultados, MAX_PUBLICACOES_NO_PROMPT)
     linhas = []
     for i, r in enumerate(amostra, 1):
@@ -157,15 +169,22 @@ def _montar_prompt(resultados: list[dict], data_br: str, palavras: list[str]) ->
         f" (a lista abaixo traz as {MAX_PUBLICACOES_NO_PROMPT} primeiras para análise)"
         if total > MAX_PUBLICACOES_NO_PROMPT else ""
     )
+    nota_parcial = ""
+    if avisos:
+        nota_parcial = (
+            "\n\nATENÇÃO — DADOS PARCIAIS: " + " ".join(avisos) +
+            " Avise isso ao final do Panorama."
+        )
 
     return (
         f"DATA DA EDIÇÃO: {data_br}\n"
         f"TERMOS MONITORADOS: {termos}\n"
-        f"TOTAL DE PUBLICAÇÕES ENCONTRADAS: {total}{nota_amostra}\n\n"
-        "TAREFA: analise as publicações abaixo e produza a síntese seguindo "
-        "EXATAMENTE o template Markdown e as regras de restrição definidas nas "
-        f"suas instruções. No campo Volume, use o total real de {total} "
-        "publicações.\n\n"
+        f"TOTAL DE PUBLICAÇÕES VARRIDAS: {total}{nota_amostra}{nota_parcial}\n\n"
+        "TAREFA: aplique a triagem das suas instruções (descarte RH, contratos de "
+        "outras pastas, atos administrativos e falsos positivos) e produza a "
+        "síntese SÓ com os atos que se enquadram nos critérios de inclusão, "
+        "seguindo EXATAMENTE o template Markdown. No campo Volume, informe quantos "
+        f"atos relevantes você aprovou, de um total de {total} varridos.\n\n"
         f"PUBLICAÇÕES:\n{corpo_lista}"
     )
 
@@ -175,6 +194,7 @@ def gerar_resumo(
     data_br: str,
     palavras: list[str],
     modelo: str | None = None,
+    avisos: list[str] | None = None,
 ) -> str | None:
     """
     Gera um resumo executivo das publicações via Gemini.
@@ -202,15 +222,15 @@ def gerar_resumo(
         return None
 
     cliente = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    prompt = _montar_prompt(resultados, data_br, palavras)
+    prompt = _montar_prompt(resultados, data_br, palavras, avisos=avisos)
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION,
         temperature=0.3,          # baixa: factual e estável
-        max_output_tokens=1200,
-        # Os modelos 2.5 "pensam" antes de responder, consumindo o orçamento de
-        # tokens. Para um resumo estruturado isso é desnecessário e trunca a
-        # saída — desligamos o thinking.
-        thinking_config=types.ThinkingConfig(thinking_budget=0),
+        max_output_tokens=4096,   # resposta + raciocínio
+        # Triagem/descarte e consolidação exigem RACIOCÍNIO — habilitamos o
+        # "thinking" dinâmico do 2.5 (o modelo decide quanto pensar). O
+        # max_output_tokens generoso evita truncar a resposta final.
+        thinking_config=types.ThinkingConfig(thinking_budget=-1),
     )
 
     # O Gemini retorna 503 (sobrecarga) e 429 (limite/minuto) de forma

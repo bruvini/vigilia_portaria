@@ -137,10 +137,11 @@ def _carregar_config(db) -> dict:
 def _executar_varredura(data_publicacao: date, grupos, fontes) -> dict:
     resultados: list[dict] = []
     erros: list[str] = []
+    avisos: list[str] = []
 
     if fontes.get("dou", True):
         try:
-            resultados.extend(buscar_dou_completo(data_publicacao, grupos))
+            resultados.extend(buscar_dou_completo(data_publicacao, grupos, avisos=avisos))
         except Exception as e:
             logger.exception("Falha na varredura do DOU")
             erros.append(f"DOU: {e}")
@@ -161,6 +162,7 @@ def _executar_varredura(data_publicacao: date, grupos, fontes) -> dict:
         "total": len(resultados),
         "por_origem": por_origem,
         "erros": erros,
+        "avisos": avisos,
         "executado_em": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -176,7 +178,8 @@ def _montar_e_enviar_relatorio(
     resumo_ia = None
     if usar_ia:
         resumo_ia = ia.gerar_resumo(
-            resultado["resultados"], data_pub.strftime("%d/%m/%Y"), termos
+            resultado["resultados"], data_pub.strftime("%d/%m/%Y"), termos,
+            avisos=resultado.get("avisos"),
         )
 
     assunto, html_corpo = gerar_relatorio_html(
@@ -353,7 +356,10 @@ def _rota_sintese(corpo: dict) -> https_fn.Response:
         if doc.exists and doc.to_dict().get("texto"):
             return _json_response({"sintese": doc.to_dict()["texto"], "cache": True})
 
-    texto = ia.gerar_resumo(resultados, data_pub.strftime("%d/%m/%Y"), termos, modelo=modelo)
+    avisos = corpo.get("avisos") if isinstance(corpo.get("avisos"), list) else None
+    texto = ia.gerar_resumo(
+        resultados, data_pub.strftime("%d/%m/%Y"), termos, modelo=modelo, avisos=avisos,
+    )
     if texto and not modelo:
         ref.set({
             "texto": texto,
