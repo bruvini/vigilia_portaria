@@ -162,3 +162,13 @@ def test_ia_system_instruction_triagem_e_restricao():
     assert "Nenhuma publicação de alto impacto" in si
     # regra de não inventar valores
     assert "Valor sob consulta nos anexos do ato" in si
+
+
+def test_ia_system_instruction_calibracao_abrangencia():
+    """A triagem não pode descartar programas nacionais/estaduais aplicáveis a SC."""
+    si = ia.SYSTEM_INSTRUCTION
+    assert "ABRANGÊNCIA ESTADUAL/NACIONAL" in si
+    assert "SOBREPÕE" in si                              # prioridade sobre o geográfico
+    assert "Grupo Hospitalar Conceição" in si or "GHC" in si
+    assert "Estado de Santa Catarina" in si
+    assert "PREVALECE" in si                             # inclusão de programa > exclusão geográfica
