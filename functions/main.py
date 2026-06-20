@@ -194,6 +194,15 @@ def _montar_e_enviar_relatorio(
     grupos, fontes, usar_ia: bool = False,
 ) -> dict:
     """Varre, opcionalmente resume com IA, envia o e-mail e registra o histórico."""
+    # Guardrail: grupos vazios disparariam uma varredura sem filtro, resultando em
+    # centenas de publicações irrelevantes no e-mail. Usamos os padrões como fallback.
+    if not limpar_grupos(grupos):
+        logger.warning(
+            "Grupos de palavras-chave vazios — usando GRUPOS_PADRAO para evitar "
+            "varredura sem filtro. Verifique a configuração em config/varredura."
+        )
+        grupos = config_padrao.GRUPOS_PADRAO
+
     resultado = _executar_varredura(data_pub, grupos, fontes)
     termos = grupos_para_termos(grupos)
 

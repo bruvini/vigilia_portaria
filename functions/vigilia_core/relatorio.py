@@ -1,16 +1,21 @@
 """
 Relatório institucional de varredura (e-mail HTML).
 
-Gera um e-mail no estilo "Gazeta Oficial" — coerente com a SPA — usando apenas
-estilos inline e tabelas (máxima compatibilidade com clientes de e-mail, que
-ignoram <style> externo e fl/grid modernos).
+Gera um e-mail no estilo "briefing executivo" — bloco IA com links diretos aos
+atos relevantes, aviso de imprecisões e botão CTA que leva ao app com a data
+pré-carregada (deep-link). Sem IA: lista compacta com até 10 publicações.
 
-Usado por:
-  - functions/main.py → função agendada `relatorio_diario` e envio de teste.
-  - tests/test_relatorio.py.
+Layout:
+  1. Cabeçalho  (fundo escuro + marca)
+  2. Faixa de métricas  (N publicações · DOU:X · DOE-SC:Y · termos usados)
+  3. Bloco IA  (se disponível — análise de impacto com links clicáveis)
+  4. Lista compacta  (sem IA → top 10 títulos+links; com IA → omitida)
+  5. Aviso IA  (se disponível — isenção de erros + contagem de publicações)
+  6. Botão CTA  → deep-link vigiliasms.web.app?data=AAAA-MM-DD
+  7. Rodapé
 
-A seção de resumo por IA é renderizada apenas quando um texto de resumo é
-fornecido (preparado para integração futura com o Google AI Studio / Gemini).
+Usa apenas estilos inline e tabelas — máxima compatibilidade com clientes
+de e-mail que ignoram <style> externo e fl/grid modernos (Outlook, Gmail).
 """
 
 from __future__ import annotations
@@ -40,9 +45,34 @@ _BORDA = "#d8d2c4"
 _AZUL = "#0ea5e9"
 _AZUL_FUNDO = "#0a6da4"
 
+_URL_APP = "https://vigiliasms.web.app"
+
+# Número máximo de publicações exibidas no e-mail quando não há resumo IA.
+_MAX_ITENS_SEM_IA = 10
+
 
 def _e(texto) -> str:
     return html.escape(str(texto or ""))
+
+
+_RE_NEGRITO = re.compile(r"\*\*(.+?)\*\*")
+_RE_ITALICO = re.compile(r"\*(.+?)\*")
+_RE_URL = re.compile(r"(https?://[^\s,\"<>]+)")
+
+
+def _inline_md(texto: str) -> str:
+    """Escapa o texto e aplica negrito (**), itálico (*) e URLs clicáveis."""
+    seguro = _e(texto)
+    seguro = _RE_NEGRITO.sub(r"<strong>\1</strong>", seguro)
+    seguro = _RE_ITALICO.sub(r"<em>\1</em>", seguro)
+    seguro = _RE_URL.sub(
+        lambda m: (
+            f"<a href='{m.group(1)}' style='color:{_AZUL_FUNDO};"
+            f"font-weight:bold;'>Ver ato &rarr;</a>"
+        ),
+        seguro,
+    )
+    return seguro
 
 
 def gerar_relatorio_html(
@@ -55,41 +85,34 @@ def gerar_relatorio_html(
     Gera (assunto, corpo_html) do relatório diário.
 
     termos: lista achatada dos termos monitorados (apenas para exibição).
-    resumo_ia: se fornecido, renderiza o bloco de "Síntese por IA" no topo.
+    resumo_ia: se fornecido, renderiza o bloco de análise de impacto e omite
+               a lista compacta — o bloco IA é o conteúdo principal do e-mail.
     """
     data_br = data_publicacao.strftime("%d/%m/%Y")
     data_ext = _data_extenso(data_publicacao)
     total = len(resultados)
-    assunto = f"Vigília · {total} publicação(ões) nos diários de {data_br}"
+    assunto = f"Vigília · {total} publicação(ões) filtradas · {data_br}"
 
     por_origem: dict[str, list[dict]] = {}
     for r in resultados:
         por_origem.setdefault(r.get("origem", "DOU"), []).append(r)
 
-    blocos = []
-    for origem in ("DOU", "DOE-SC"):
-        grupo = por_origem.pop(origem, [])
-        if grupo:
-            blocos.append(_bloco_origem(origem, grupo))
-    for origem, grupo in por_origem.items():
-        blocos.append(_bloco_origem(origem, grupo))
+    url_dia = f"{_URL_APP}?data={data_publicacao.isoformat()}"
 
-    termos_txt = ", ".join(termos) if termos else "todas as publicações do dia"
+    faixa_metricas = _faixa_metricas(total, por_origem, termos)
 
-    corpo_central = (
-        "".join(blocos)
-        if blocos
-        else (
-            f"<tr><td style='padding:40px 32px;text-align:center;'>"
-            f"<div style=\"font-family:Georgia,serif;font-style:italic;font-size:22px;"
-            f"color:{_TINTA_SUAVE};\">Nada consta.</div>"
-            f"<div style='font-family:Arial,sans-serif;font-size:13px;color:#94a3b8;"
-            f"margin-top:8px;'>Nenhuma publicação correspondeu aos critérios "
-            f"configurados nesta edição.</div></td></tr>"
-        )
-    )
+    if resumo_ia:
+        corpo_central = _bloco_resumo_ia(resumo_ia) + _bloco_aviso_ia(total, url_dia)
+    elif total == 0:
+        corpo_central = _bloco_vazio()
+    else:
+        corpo_central = _bloco_lista_compacta(resultados, por_origem) + _bloco_cta(total, url_dia)
 
-    bloco_ia = _bloco_resumo_ia(resumo_ia) if resumo_ia else ""
+    if resumo_ia:
+        # O botão CTA já está dentro de _bloco_aviso_ia
+        corpo_central_final = corpo_central
+    else:
+        corpo_central_final = corpo_central
 
     corpo = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -123,31 +146,9 @@ def gerar_relatorio_html(
     </table>
   </td></tr>
 
-  <!-- RESUMO DOS PARÂMETROS -->
-  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
-       border-right:1px solid {_BORDA};padding:22px 34px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="font-family:Georgia,serif;font-size:40px;font-weight:bold;
-            color:{_AZUL_FUNDO};line-height:1;width:90px;vertical-align:top;">{total}</td>
-        <td style="font-family:Arial,sans-serif;font-size:13px;color:{_TINTA_SUAVE};
-            line-height:1.6;vertical-align:top;padding-top:4px;">
-          publicação(ões) encontrada(s)<br>
-          <span style="color:#94a3b8;">termos monitorados:</span> <strong>{_e(termos_txt)}</strong>
-        </td>
-      </tr>
-    </table>
-  </td></tr>
+  {faixa_metricas}
 
-  {bloco_ia}
-
-  <!-- CORPO -->
-  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
-       border-right:1px solid {_BORDA};padding:8px 34px 28px 34px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      {corpo_central}
-    </table>
-  </td></tr>
+  {corpo_central_final}
 
   <!-- RODAPÉ -->
   <tr><td style="background:{_TINTA};padding:24px 34px;text-align:center;
@@ -158,7 +159,7 @@ def gerar_relatorio_html(
     </div>
     <div style="font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;line-height:1.7;">
       Unidade de Convênios e Parcerias · SMS Joinville<br>
-      <a href="https://vigiliasms.web.app" style="color:#7dd3fc;text-decoration:none;">vigiliasms.web.app</a>
+      <a href="{_URL_APP}" style="color:#7dd3fc;text-decoration:none;">vigiliasms.web.app</a>
     </div>
     <div style="font-family:Arial,sans-serif;font-size:10px;color:#475569;
          letter-spacing:2px;margin-top:14px;">
@@ -174,23 +175,44 @@ def gerar_relatorio_html(
     return assunto, corpo
 
 
-_RE_NEGRITO = re.compile(r"\*\*(.+?)\*\*")
-_RE_ITALICO = re.compile(r"\*(.+?)\*")
+# ---------------------------------------------------------------------------
+# Blocos internos
+# ---------------------------------------------------------------------------
 
-
-def _inline_md(texto: str) -> str:
-    """Escapa o texto e aplica negrito (**), itálico (*) e checkbox (▢)."""
-    seguro = _e(texto)
-    seguro = _RE_NEGRITO.sub(r"<strong>\1</strong>", seguro)
-    seguro = _RE_ITALICO.sub(r"<em>\1</em>", seguro)
-    return seguro
+def _faixa_metricas(total: int, por_origem: dict, termos: list[str]) -> str:
+    """Faixa compacta com contagem total, breakdown por fonte e termos usados."""
+    breakdown = " · ".join(
+        f"{orig}: {len(regs)}"
+        for orig, regs in por_origem.items()
+    )
+    termos_txt = (
+        " · ".join(_e(t) for t in termos)
+        if termos else "todas as publicações do dia"
+    )
+    return f"""
+  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
+       border-right:1px solid {_BORDA};padding:18px 34px 16px 34px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="font-family:Georgia,serif;font-size:36px;font-weight:bold;
+            color:{_AZUL_FUNDO};line-height:1;width:70px;vertical-align:top;">{total}</td>
+        <td style="font-family:Arial,sans-serif;font-size:12px;color:{_TINTA_SUAVE};
+            line-height:1.7;vertical-align:top;padding-top:2px;">
+          publicação(ões) filtradas com os termos monitorados<br>
+          <span style="font-size:11px;color:#64748b;">{_e(breakdown)}</span><br>
+          <span style="font-size:10px;color:#94a3b8;">termos: </span>
+          <span style="font-size:10px;color:{_TINTA_SUAVE};font-weight:bold;">{termos_txt}</span>
+        </td>
+      </tr>
+    </table>
+  </td></tr>"""
 
 
 def _bloco_resumo_ia(resumo: str) -> str:
     """
-    Renderiza a síntese da IA (Markdown) como HTML para e-mail.
-    Suporta: '## ' (seção), '### ' (subtítulo), '* ' (lista, inclusive com '▢'),
-    '✦ ' (banner) e formatação inline **negrito** / *itálico*.
+    Renderiza a análise de impacto da IA (Markdown) como HTML para e-mail.
+    Suporta: '## ' (seção), '### ' (subtítulo), '* ' (lista), '✦ ' (banner)
+    e formatação inline **negrito** / *itálico* / URLs → links clicáveis.
     """
     corpo = []
     for linha_bruta in str(resumo).split("\n"):
@@ -216,8 +238,6 @@ def _bloco_resumo_ia(resumo: str) -> str:
                 f"{_inline_md(linha)}</div>"
             )
         elif linha.startswith(("* ", "- ", "• ")):
-            # os itens da IA já começam com um emoji/▢ semântico — não adicionamos
-            # marcador extra, apenas recuo.
             item = linha[2:].strip()
             corpo.append(
                 f"<div style='font-family:Arial,sans-serif;font-size:13px;color:{_TINTA};"
@@ -239,72 +259,138 @@ def _bloco_resumo_ia(resumo: str) -> str:
         <div style="color:{_TINTA};line-height:1.7;">
           {''.join(corpo)}
         </div>
-        <div style="font-family:Arial,sans-serif;font-size:10px;color:#94a3b8;
-             margin-top:12px;border-top:1px solid #bae6fd;padding-top:8px;">
-          Resumo gerado automaticamente por IA a partir das publicações abaixo.
-          Confira sempre o ato oficial antes de decisões.
+      </td></tr>
+    </table>
+  </td></tr>"""
+
+
+def _bloco_aviso_ia(total: int, url_dia: str) -> str:
+    """Aviso de imprecisões da IA + botão CTA com deep-link."""
+    return f"""
+  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
+       border-right:1px solid {_BORDA};padding:0 34px 28px 34px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+           style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;">
+      <tr><td style="padding:14px 20px;">
+        <div style="font-family:Arial,sans-serif;font-size:12px;color:#78350f;line-height:1.6;">
+          ⚠️ <strong>Resumo gerado por IA — pode conter erros ou omissões.</strong>
+          Confirme sempre nos atos oficiais antes de qualquer decisão.<br>
+          A varredura retornou <strong>{total} publicação(ões)</strong> com os termos
+          monitorados. Acesse o Vigília para consultar todas.
+        </div>
+        <div style="margin-top:14px;text-align:center;">
+          <a href="{_e(url_dia)}"
+             style="display:inline-block;background:{_AZUL_FUNDO};color:#ffffff;
+                    font-family:Arial,sans-serif;font-size:13px;font-weight:bold;
+                    letter-spacing:0.5px;text-decoration:none;
+                    padding:12px 28px;border-radius:5px;">
+            Ver as {total} publicações no Vigília &rarr;
+          </a>
         </div>
       </td></tr>
     </table>
   </td></tr>"""
 
 
-def _bloco_origem(origem: str, grupo: list[dict]) -> str:
-    nome = NOMES_FONTES.get(origem, origem)
-    cor = CORES_ORIGEM.get(origem, _TINTA)
-    itens = "".join(_item(r, cor) for r in grupo)
-    return f"""
-      <tr><td style="padding:18px 0 10px 0;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="font-family:Arial,sans-serif;font-size:12px;font-weight:bold;
-                letter-spacing:2px;text-transform:uppercase;color:{_TINTA};
-                border-bottom:2px solid {_TINTA};padding-bottom:6px;">{_e(nome)}</td>
-            <td align="right" style="font-family:Arial,sans-serif;font-size:11px;
-                color:#94a3b8;border-bottom:2px solid {_TINTA};padding-bottom:6px;">
-                {len(grupo)} registro(s)</td>
-          </tr>
-        </table>
+def _bloco_lista_compacta(resultados: list[dict], por_origem: dict) -> str:
+    """
+    Lista compacta (sem IA): apenas título + link, agrupada por fonte,
+    limitada a _MAX_ITENS_SEM_IA itens no total.
+    """
+    blocos = []
+    exibidos = 0
+
+    for origem in ("DOU", "DOE-SC"):
+        grupo = por_origem.get(origem, [])
+        if not grupo or exibidos >= _MAX_ITENS_SEM_IA:
+            break
+        nome = NOMES_FONTES.get(origem, origem)
+        cor = CORES_ORIGEM.get(origem, _TINTA)
+        itens_html = []
+        for r in grupo:
+            if exibidos >= _MAX_ITENS_SEM_IA:
+                break
+            titulo = _e(r.get("titulo", "(sem título)"))
+            link = str(r.get("link", "") or "")
+            tipo = _e(r.get("tipo", ""))
+            titulo_html = (
+                f"<a href='{_e(link)}' style='color:{_AZUL_FUNDO};font-weight:bold;"
+                f"text-decoration:none;font-size:13px;'>{titulo}</a>"
+                if link.startswith("http") else
+                f"<span style='font-size:13px;font-weight:bold;color:{_TINTA};'>{titulo}</span>"
+            )
+            tipo_html = (
+                f"<span style='font-family:Arial,sans-serif;font-size:10px;"
+                f"color:#94a3b8;margin-right:6px;'>{tipo}</span>"
+                if tipo else ""
+            )
+            itens_html.append(
+                f"<tr><td style='padding:8px 0;border-bottom:1px solid #f1f5f9;'>"
+                f"{tipo_html}{titulo_html}</td></tr>"
+            )
+            exibidos += 1
+
+        if itens_html:
+            blocos.append(f"""
+      <tr><td style="padding:18px 0 6px 0;">
+        <div style="font-family:Arial,sans-serif;font-size:11px;font-weight:bold;
+             letter-spacing:2px;text-transform:uppercase;color:{cor};
+             border-bottom:2px solid {cor};padding-bottom:4px;margin-bottom:4px;">
+          {_e(nome)}
+        </div>
       </td></tr>
-      {itens}"""
+      <tr><td>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          {''.join(itens_html)}
+        </table>
+      </td></tr>""")
+
+    return f"""
+  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
+       border-right:1px solid {_BORDA};padding:8px 34px 4px 34px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {''.join(blocos) if blocos else '<tr><td></td></tr>'}
+    </table>
+  </td></tr>"""
 
 
-def _item(r: dict, cor: str) -> str:
-    titulo = _e(r.get("titulo", "(sem título)"))
-    link = str(r.get("link", "") or "")
-    corpo = _e((r.get("resumo") or r.get("descricao") or "")[:380])
-    hierarquia = _e(r.get("hierarquia", ""))
-    secao = _e(r.get("secao", ""))
-    etiqueta = " · ".join(p for p in [_e(r.get("origem", "")), f"Seção {secao.replace('DO','')}" if secao else ""] if p)
-
-    titulo_html = (
-        f"<a href='{_e(link)}' style='color:{_TINTA};text-decoration:none;'>{titulo}</a>"
-        if link.startswith("http") else titulo
-    )
-    link_html = (
-        f"<a href='{_e(link)}' style='font-family:Arial,sans-serif;font-size:11px;"
-        f"font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;"
-        f"color:{_AZUL_FUNDO};text-decoration:none;'>Acessar publicação oficial &rarr;</a>"
-        if link.startswith("http") else ""
+def _bloco_cta(total: int, url_dia: str) -> str:
+    """Botão CTA com contagem e deep-link (usado quando não há IA)."""
+    restantes = total - _MAX_ITENS_SEM_IA
+    nota = (
+        f"<div style='font-family:Arial,sans-serif;font-size:12px;color:#64748b;"
+        f"margin-bottom:12px;'>... e mais <strong>{restantes}</strong> "
+        f"publicação(ões) disponíveis no sistema.</div>"
+        if restantes > 0 else ""
     )
     return f"""
-      <tr><td style="padding:0 0 14px 0;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-               style="border-left:3px solid {cor};background:#f8fafc;">
-          <tr><td style="padding:12px 16px;">
-            <div style="font-family:Arial,sans-serif;font-size:10px;letter-spacing:1px;
-                 text-transform:uppercase;color:{cor};font-weight:bold;margin-bottom:5px;">
-                 {etiqueta}</div>
-            <div style="font-family:Arial,sans-serif;font-size:10px;color:#94a3b8;
-                 margin-bottom:6px;">{hierarquia}</div>
-            <div style="font-family:Georgia,serif;font-size:16px;font-weight:bold;
-                 line-height:1.35;margin-bottom:6px;color:{_TINTA};">{titulo_html}</div>
-            <div style="font-family:Arial,sans-serif;font-size:13px;color:{_TINTA_SUAVE};
-                 line-height:1.6;margin-bottom:8px;">{corpo}</div>
-            {link_html}
-          </td></tr>
-        </table>
-      </td></tr>"""
+  <tr><td style="background:{_CARD};border-left:1px solid {_BORDA};
+       border-right:1px solid {_BORDA};padding:20px 34px 28px 34px;text-align:center;">
+    {nota}
+    <a href="{_e(url_dia)}"
+       style="display:inline-block;background:{_AZUL_FUNDO};color:#ffffff;
+              font-family:Arial,sans-serif;font-size:13px;font-weight:bold;
+              letter-spacing:0.5px;text-decoration:none;
+              padding:12px 28px;border-radius:5px;">
+      Ver as {total} publicações no Vigília &rarr;
+    </a>
+    <div style="font-family:Arial,sans-serif;font-size:10px;color:#94a3b8;
+         margin-top:10px;">
+      Ative o Resumo por IA na configuração para receber uma análise de impacto neste e-mail.
+    </div>
+  </td></tr>"""
+
+
+def _bloco_vazio() -> str:
+    return (
+        f"<tr><td style='background:{_CARD};border-left:1px solid {_BORDA};"
+        f"border-right:1px solid {_BORDA};padding:40px 32px;text-align:center;'>"
+        f"<div style=\"font-family:Georgia,serif;font-style:italic;font-size:22px;"
+        f"color:{_TINTA_SUAVE};\">Nada consta.</div>"
+        f"<div style='font-family:Arial,sans-serif;font-size:13px;color:#94a3b8;"
+        f"margin-top:8px;'>Nenhuma publicação correspondeu aos critérios "
+        f"configurados nesta edição.</div></td></tr>"
+    )
 
 
 def _data_extenso(d: date) -> str:

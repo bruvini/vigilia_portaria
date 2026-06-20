@@ -107,18 +107,20 @@ def test_relatorio_com_resumo_ia_renderiza_markdown():
     assert "Panorama do Dia" in corpo            # heading ## renderizado
     assert "<strong>Volume:</strong>" in corpo   # **negrito** → <strong>
     assert "Vigília IA" in corpo                  # banner ✦
-    assert "Resumo gerado" in corpo               # rodapé do bloco de IA
+    # aviso de imprecisões da IA (novo layout: bloco amarelo abaixo do resumo)
+    assert "Resumo gerado por IA" in corpo
 
 
 def test_relatorio_sem_resumo_ia_omite_bloco():
     _, corpo = gerar_relatorio_html([_ato()], date(2026, 6, 9), ["saúde"])
-    assert "Resumo gerado" not in corpo           # bloco de IA ausente
+    assert "Resumo gerado por IA" not in corpo   # aviso IA ausente quando sem resumo
 
 
 def test_relatorio_escapa_xss_no_email():
+    # Sem IA → lista compacta exibe o título; o escape XSS deve proteger o HTML.
     ato = _ato()
     ato["titulo"] = "<script>alert(1)</script>"
-    _, corpo = gerar_relatorio_html([ato], date(2026, 6, 9), [], "OU")
+    _, corpo = gerar_relatorio_html([ato], date(2026, 6, 9), [])
     assert "<script>alert" not in corpo
     assert "&lt;script&gt;" in corpo
 

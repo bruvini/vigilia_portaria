@@ -148,7 +148,10 @@ SYSTEM_INSTRUCTION = (
     "* 💰 **Impacto financeiro:** [valor em destaque; se estiver em anexo, escreva "
     "\"Valor sob consulta nos anexos do ato\"].\n"
     "* ⏳ **Prazos e providências do setor:** [ação que o setor precisa tomar e "
-    "prazo-limite; se for execução contínua, \"Fluxo contínuo\"].\n\n"
+    "prazo-limite; se for execução contínua, \"Fluxo contínuo\"].\n"
+    "* 🔗 **Link:** [use EXATAMENTE a URL do campo `fonte:` da(s) publicação(ões) "
+    "correspondente(s). Se consolidado, liste todas as URLs separadas por vírgula. "
+    "Se não houver URL, omita este campo.]\n\n"
     "## ⚡ Próximos Passos Recomendados\n"
     "* ▢ **[Setor, ex: Financeiro/Contratos]:** [ação verbal clara] - "
     "*Motivo: [risco/oportunidade].*\n\n"
@@ -244,7 +247,7 @@ def gerar_resumo(
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION,
         temperature=0.3,          # baixa: factual e estável
-        max_output_tokens=4096,   # resposta + raciocínio
+        max_output_tokens=8192,   # resposta + raciocínio (thinking_budget=-1 consome parte)
         # Triagem/descarte e consolidação exigem RACIOCÍNIO — habilitamos o
         # "thinking" dinâmico do 2.5 (o modelo decide quanto pensar). O
         # max_output_tokens generoso evita truncar a resposta final.

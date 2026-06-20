@@ -888,5 +888,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Escape" && !modalConfig.hidden) fecharConfig();
   });
 
-  carregarConfig();
+  // Deep-link: ?data=AAAA-MM-DD pré-carrega a data e dispara a busca.
+  // Usado pelo botão "Ver no Vigília" dos e-mails do Vigília.
+  carregarConfig().then(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dataParam = params.get("data");
+    if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+      $("#inp-data").value = dataParam;
+      executarVarredura();
+    }
+  });
 });
