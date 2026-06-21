@@ -1304,6 +1304,65 @@ mark {
 }
 
 /* ==========================================================================
+   LINK DE ATO OFICIAL (síntese IA — badge clicável)
+   ========================================================================== */
+
+.sintese-link {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brand-deep);
+  text-decoration: none;
+  border: 1.5px solid var(--brand);
+  border-radius: 2px;
+  padding: 0.17rem 0.65rem;
+  margin: 0 0.18rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.sintese-link::after { content: " ↗"; font-size: 0.9em; }
+
+.sintese-link:hover {
+  background: var(--brand-deep);
+  border-color: var(--brand-deep);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   TOAST (notificação efêmera)
+   ========================================================================== */
+
+.toast {
+  position: fixed;
+  bottom: 1.8rem;
+  right: 1.8rem;
+  background: var(--brand-night);
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  padding: 0.9rem 1.3rem;
+  border-radius: 3px;
+  border-left: 3px solid var(--brand);
+  box-shadow: 0 4px 28px rgba(0,0,0,0.28);
+  z-index: 3000;
+  max-width: 420px;
+  cursor: pointer;
+  animation: toast-in 0.28s var(--ease-out) both;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
    RESPONSIVO
    ========================================================================== */
 

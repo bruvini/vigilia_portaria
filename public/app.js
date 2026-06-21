@@ -534,21 +534,52 @@ function loaderErro(msg) {
   $("#loader-frase").textContent = msg;
 }
 
+/* --------------------------------------------------------------- toast ---- */
+
+function mostrarToast(msg, duracao = 5000) {
+  document.querySelectorAll(".toast").forEach((t) => t.remove());
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  const timer = setTimeout(() => {
+    toast.style.transition = "opacity 0.35s, transform 0.35s";
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(10px)";
+    setTimeout(() => toast.remove(), 400);
+  }, duracao);
+  toast.addEventListener("click", () => { clearTimeout(timer); toast.remove(); });
+}
+
 /* ---------------------------------------------------------- histórico de IA */
 
 async function abrirHistorico() {
-  const modal = $("#modal-historico");
-  modal.hidden = false;
-  document.body.classList.add("modal-aberto");
-  $("#btn-historico").setAttribute("aria-expanded", "true");
+  const btn = $("#btn-historico");
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Carregando…";
 
-  const lista = $("#historico-lista");
-  lista.innerHTML = '<p class="historico-estado">Carregando…</p>';
   try {
     const resp = await chamarAPI("/historico?limite=30");
-    renderizarHistorico(resp.historico || []);
+    const entries = resp.historico || [];
+
+    if (!entries.length) {
+      mostrarToast("📭 Histórico ainda vazio — registros aparecem após o envio automático do e-mail com Síntese por IA ativada.");
+      return;
+    }
+
+    const modal = $("#modal-historico");
+    const lista = $("#historico-lista");
+    lista.textContent = "";
+    modal.hidden = false;
+    document.body.classList.add("modal-aberto");
+    btn.setAttribute("aria-expanded", "true");
+    renderizarHistorico(entries);
   } catch (e) {
-    lista.innerHTML = `<p class="historico-estado">Não foi possível carregar o histórico: ${_esc(e.message)}</p>`;
+    mostrarToast(`Não foi possível carregar o histórico: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
   }
 }
 
@@ -763,7 +794,7 @@ async function obterSintese(params) {
   }
 }
 
-// Escapa HTML e aplica formatação inline do Markdown (**negrito**, *itálico*).
+// Escapa HTML e aplica formatação inline do Markdown (**negrito**, *itálico*, URLs).
 // Como o texto é escapado antes, as únicas tags inseridas são as nossas.
 function _esc(s) {
   return String(s)
@@ -772,7 +803,12 @@ function _esc(s) {
 function _inlineMd(s) {
   return _esc(s)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/(https?:\/\/[^\s<>"]+)/g, (url) => {
+      // Remove pontuação residual do final da URL (ponto final de frase, vírgula…)
+      const href = url.replace(/[.,;:)\]]+$/, "");
+      return `<a href="${href}" class="sintese-link" target="_blank" rel="noopener noreferrer">Ver ato oficial</a>`;
+    });
 }
 
 // Renderiza a síntese (Markdown: ## , ### , ✦ , * , **negrito**, *itálico*).
