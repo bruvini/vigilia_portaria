@@ -7,12 +7,18 @@ pré-carregada (deep-link). Sem IA: lista compacta com até 10 publicações.
 
 Layout:
   1. Cabeçalho  (fundo escuro + marca)
-  2. Faixa de métricas  (N publicações · DOU:X · DOE-SC:Y · termos usados)
-  3. Bloco IA  (se disponível — análise de impacto com links clicáveis)
-  4. Lista compacta  (sem IA → top 10 títulos+links; com IA → omitida)
-  5. Aviso IA  (se disponível — isenção de erros + contagem de publicações)
-  6. Botão CTA  → deep-link vigiliasms.web.app?data=AAAA-MM-DD
-  7. Rodapé
+  2. Faixa de alerta  (🔴/🟡 — inserida apenas quando a IA detecta urgência)
+  3. Faixa de métricas  (N publicações · DOU:X · DOE-SC:Y · termos usados)
+  4. Bloco IA  (se disponível — análise de impacto com links clicáveis)
+  5. Lista compacta  (sem IA → top 10 títulos+links; com IA → omitida)
+  6. Aviso IA  (se disponível — isenção de erros + contagem de publicações)
+  7. Botão CTA  → deep-link vigiliasms.web.app?data=AAAA-MM-DD
+  8. Rodapé
+
+Urgência (detectada automaticamente do output da IA):
+  🔴 Crítico   → assunto prefixado com "⚠️ URGENTE:" e faixa vermelha no e-mail
+  🟡 Moderado  → assunto prefixado com "⚡ Atenção:"  e faixa âmbar no e-mail
+  🟢 Baixo     → assunto e layout padrão
 
 Usa apenas estilos inline e tabelas — máxima compatibilidade com clientes
 de e-mail que ignoram <style> externo e fl/grid modernos (Outlook, Gmail).
@@ -49,6 +55,32 @@ _URL_APP = "https://vigiliasms.web.app"
 
 # Número máximo de publicações exibidas no e-mail quando não há resumo IA.
 _MAX_ITENS_SEM_IA = 10
+
+# Paleta de urgência (faixa de alerta + prefixo no assunto)
+_URGENCIA = {
+    "critico":  {"emoji": "🔴", "label": "URGENTE",  "prefixo": "⚠️ URGENTE:",  "cor": "#b91c1c", "fundo": "#fef2f2", "borda": "#fca5a5"},
+    "moderado": {"emoji": "🟡", "label": "ATENÇÃO",  "prefixo": "⚡ Atenção:",  "cor": "#92400e", "fundo": "#fffbeb", "borda": "#fcd34d"},
+}
+
+_RE_NIVEL = re.compile(r"(🔴|🟡|🟢)\s*(Cr[íi]tico|Moderado|Baixo)", re.IGNORECASE)
+
+
+def detectar_urgencia(resumo_ia: str | None) -> str:
+    """
+    Lê o nível de urgência da linha de Panorama do output da IA.
+    Retorna: 'critico', 'moderado', 'baixo' ou 'nenhum' (sem IA / sem nível).
+    """
+    if not resumo_ia:
+        return "nenhum"
+    m = _RE_NIVEL.search(resumo_ia)
+    if not m:
+        return "nenhum"
+    emoji = m.group(1)
+    if emoji == "🔴":
+        return "critico"
+    if emoji == "🟡":
+        return "moderado"
+    return "baixo"
 
 
 def _e(texto) -> str:
@@ -91,7 +123,6 @@ def gerar_relatorio_html(
     data_br = data_publicacao.strftime("%d/%m/%Y")
     data_ext = _data_extenso(data_publicacao)
     total = len(resultados)
-    assunto = f"Vigília · {total} publicação(ões) filtradas · {data_br}"
 
     por_origem: dict[str, list[dict]] = {}
     for r in resultados:
@@ -99,6 +130,15 @@ def gerar_relatorio_html(
 
     url_dia = f"{_URL_APP}?data={data_publicacao.isoformat()}"
 
+    urgencia = detectar_urgencia(resumo_ia)
+    cfg_urg = _URGENCIA.get(urgencia)
+
+    if cfg_urg:
+        assunto = f"{cfg_urg['prefixo']} Vigília · {total} publicação(ões) filtradas · {data_br}"
+    else:
+        assunto = f"Vigília · {total} publicação(ões) filtradas · {data_br}"
+
+    faixa_alerta = _faixa_alerta(urgencia, cfg_urg) if cfg_urg else ""
     faixa_metricas = _faixa_metricas(total, por_origem, termos)
 
     if resumo_ia:
@@ -108,11 +148,7 @@ def gerar_relatorio_html(
     else:
         corpo_central = _bloco_lista_compacta(resultados, por_origem) + _bloco_cta(total, url_dia)
 
-    if resumo_ia:
-        # O botão CTA já está dentro de _bloco_aviso_ia
-        corpo_central_final = corpo_central
-    else:
-        corpo_central_final = corpo_central
+    corpo_central_final = corpo_central
 
     corpo = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -146,6 +182,8 @@ def gerar_relatorio_html(
     </table>
   </td></tr>
 
+  {faixa_alerta}
+
   {faixa_metricas}
 
   {corpo_central_final}
@@ -178,6 +216,27 @@ def gerar_relatorio_html(
 # ---------------------------------------------------------------------------
 # Blocos internos
 # ---------------------------------------------------------------------------
+
+def _faixa_alerta(urgencia: str, cfg: dict) -> str:
+    """Faixa de alerta colorida inserida abaixo do cabeçalho para 🔴/🟡."""
+    mensagem = {
+        "critico":  "Ação imediata pode ser necessária. Leia a análise abaixo e verifique os prazos.",
+        "moderado": "Há atos que merecem atenção hoje. Confira a análise e os próximos passos.",
+    }.get(urgencia, "")
+    return f"""
+  <tr><td style="background:{cfg['cor']};padding:12px 34px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="font-family:Arial,sans-serif;font-size:13px;font-weight:bold;
+            color:#ffffff;letter-spacing:0.3px;">
+          {cfg['emoji']} {cfg['label']} · Vigília IA identificou atos de impacto
+        </td>
+      </tr>
+      <tr><td style="font-family:Arial,sans-serif;font-size:11px;color:rgba(255,255,255,0.85);
+           padding-top:3px;">{_e(mensagem)}</td></tr>
+    </table>
+  </td></tr>"""
+
 
 def _faixa_metricas(total: int, por_origem: dict, termos: list[str]) -> str:
     """Faixa compacta com contagem total, breakdown por fonte e termos usados."""
