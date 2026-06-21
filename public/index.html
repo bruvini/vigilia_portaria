@@ -89,6 +89,9 @@
         <button type="button" class="btn-ghost" id="btn-config-toggle" aria-expanded="false" aria-haspopup="dialog">
           <span class="gear" aria-hidden="true">⚙</span> Configurações
         </button>
+        <button type="button" class="btn-ghost" id="btn-historico" aria-expanded="false" aria-haspopup="dialog">
+          📋 Histórico
+        </button>
       </div>
     </div>
   </section>
@@ -157,9 +160,50 @@
             <button type="button" class="btn-small" id="btn-salvar-relatorio">Salvar relatório</button>
             <button type="button" class="btn-small btn-small-ghost" id="btn-testar-email">✉ Enviar teste agora</button>
           </div>
+
+          <div class="config-digest">
+            <h4 class="config-block-title" style="margin-top:1.4rem;">Digest semanal</h4>
+            <p class="config-block-text">
+              E-mail especial enviado toda <strong>sexta-feira</strong> com análise IA
+              consolidada da semana. Requer Síntese por IA ativada no relatório diário.
+            </p>
+            <label class="toggle toggle-digest">
+              <input type="checkbox" id="chk-digest-ativo">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label">
+                Ativar digest semanal <small class="toggle-hint">(sextas-feiras)</small>
+              </span>
+            </label>
+            <div class="chips chips-config" id="chips-digest-emails" style="margin-top:0.8rem;">
+              <input type="email" id="inp-digest-email" class="chip-input"
+                     placeholder="destinatário específico (ou vazio = usa os do relatório)…" autocomplete="off">
+            </div>
+            <div class="config-actions">
+              <button type="button" class="btn-small" id="btn-salvar-digest">Salvar digest</button>
+              <button type="button" class="btn-small btn-small-ghost" id="btn-testar-digest">📊 Enviar digest agora</button>
+            </div>
+          </div>
         </div>
       </div>
       <p class="config-status" id="config-status" role="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== HISTÓRICO (modal) -->
+  <div class="modal-backdrop" id="modal-historico" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="historico-title">
+      <div class="panel panel-config">
+        <div class="modal-head">
+          <div>
+            <h3 class="panel-title" id="historico-title">📋 Histórico de Análises</h3>
+            <p class="modal-subtitle">Últimas varreduras com resumo gerado pela IA — clique em "Análise IA" para expandir.</p>
+          </div>
+          <button type="button" class="modal-close" id="btn-historico-close" aria-label="Fechar histórico">×</button>
+        </div>
+        <div id="historico-lista" class="historico-lista">
+          <p class="historico-estado">Carregando…</p>
+        </div>
       </div>
     </div>
   </div>

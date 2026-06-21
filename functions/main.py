@@ -9,20 +9,23 @@ Funções publicadas:
                       GET  /api/health           → disponibilidade
                       GET  /api/config           → configuração (com seed)
                       POST /api/config           → salva configuração
+                      GET  /api/historico        → últimos N relatórios do histórico
                       POST /api/buscar           → varredura DOU + DOE-SC
                       POST /api/sintese          → síntese por IA dos resultados
                       POST /api/fhir             → FHIR Message Bundle
                       POST /api/relatorio/testar → envia o relatório do dia AGORA
+                      POST /api/digest/testar    → envia o digest semanal AGORA
 
-  relatorio_diario  Agendada (07:00 America/Sao_Paulo, seg-sex) — varre a edição
-                    do dia com a config salva e envia o relatório por e-mail (SMTP).
+  relatorio_diario  Agendada (hora configurável, seg-sex) — varre a edição do dia
+                    com a config salva e envia o relatório por e-mail (SMTP).
+                    Nas sextas, também envia o digest semanal se digest.ativo=true.
                     DESATIVADA por padrão: só roda quando config/relatorio.ativo
                     == true no Firestore e houver destinatários.
 
 Segredos (Firebase Secrets — ver README):
   VIGILIA_SMTP_HOST, VIGILIA_SMTP_PORT, VIGILIA_SMTP_USER, VIGILIA_SMTP_PASS,
   VIGILIA_SMTP_FROM  → envio de e-mail.
-  GEMINI_API_KEY     → resumo por IA (futuro; comentado abaixo).
+  GEMINI_API_KEY     → resumo por IA e digest semanal (exige plano Gemini).
 
 Requisitos de plano: rede externa, e-mail e agendamento exigem o plano Blaze.
 """
@@ -31,7 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from firebase_admin import firestore, initialize_app
@@ -53,7 +56,7 @@ from vigilia_core.filtros import (
     grupos_para_termos,
     limpar_grupos,
 )
-from vigilia_core.relatorio import gerar_relatorio_html
+from vigilia_core.relatorio import detectar_urgencia, gerar_digest_html, gerar_relatorio_html
 
 initialize_app()
 logging.basicConfig(level=logging.INFO)
@@ -125,6 +128,7 @@ def _carregar_config(db) -> dict:
     """Lê a configuração do Firestore, criando os padrões na primeira leitura."""
     ref_v = db.collection("config").document("varredura")
     ref_r = db.collection("config").document("relatorio")
+    ref_d = db.collection("config").document("digest")
 
     doc_v = ref_v.get()
     if doc_v.exists:
@@ -153,7 +157,14 @@ def _carregar_config(db) -> dict:
         relatorio = dict(config_padrao.RELATORIO_PADRAO)
         ref_r.set(relatorio)
 
-    return {"varredura": varredura, "relatorio": relatorio}
+    doc_d = ref_d.get()
+    if doc_d.exists:
+        digest = doc_d.to_dict()
+    else:
+        digest = dict(config_padrao.DIGEST_PADRAO)
+        ref_d.set(digest)
+
+    return {"varredura": varredura, "relatorio": relatorio, "digest": digest}
 
 
 def _executar_varredura(data_publicacao: date, grupos, fontes) -> dict:
@@ -218,6 +229,7 @@ def _montar_e_enviar_relatorio(
     )
     envio = enviar_email(destinatarios, assunto, html_corpo)
 
+    urgencia = detectar_urgencia(resumo_ia)
     db.collection("relatorios").document(data_pub.isoformat()).set({
         "data": data_pub.isoformat(),
         "total": resultado["total"],
@@ -225,6 +237,8 @@ def _montar_e_enviar_relatorio(
         "erros": resultado["erros"],
         "destinatarios": envio["destinatarios"],
         "resumo_ia": bool(resumo_ia),
+        "texto_ia": resumo_ia or "",
+        "urgencia": urgencia,
         "gerado_em": datetime.now(timezone.utc).isoformat(),
     })
     return {"total": resultado["total"], "por_origem": resultado["por_origem"], **envio}
@@ -262,6 +276,9 @@ def api(req: https_fn.Request) -> https_fn.Response:
             if req.method == "POST":
                 return _salvar_config(db, req.get_json(silent=True) or {})
 
+        if req.method == "GET" and rota == "/historico":
+            return _rota_historico(req)
+
         if req.method == "POST" and rota == "/buscar":
             return _rota_buscar(req.get_json(silent=True) or {})
 
@@ -277,6 +294,9 @@ def api(req: https_fn.Request) -> https_fn.Response:
 
         if req.method == "POST" and rota == "/relatorio/testar":
             return _rota_testar_relatorio(req.get_json(silent=True) or {})
+
+        if req.method == "POST" and rota == "/digest/testar":
+            return _rota_testar_digest(req.get_json(silent=True) or {})
 
         return _erro(f"Rota não encontrada: {req.method} {rota}", status=404)
 
@@ -310,6 +330,18 @@ def _salvar_config(db, corpo: dict) -> https_fn.Response:
             "destinatarios": destinatarios,
             "horario": str(r.get("horario", "07:00")),
             "resumo_ia": bool(r.get("resumo_ia", False)),
+            "atualizado_em": agora,
+        })
+
+    if "digest" in corpo:
+        d = corpo["digest"] or {}
+        dest_digest = [
+            dest.strip() for dest in d.get("destinatarios", [])
+            if isinstance(dest, str) and "@" in dest
+        ]
+        db.collection("config").document("digest").set({
+            "ativo": bool(d.get("ativo", False)),
+            "destinatarios": dest_digest,
             "atualizado_em": agora,
         })
 
@@ -449,6 +481,152 @@ def _rota_testar_relatorio(corpo: dict) -> https_fn.Response:
         return _erro(f"Falha ao enviar o e-mail: {e}", status=502)
 
 
+def _rota_historico(req: https_fn.Request) -> https_fn.Response:
+    """Retorna os últimos N relatórios diários do Firestore (excluindo digests)."""
+    try:
+        limite = min(int(req.args.get("limite", 30)), 90)
+    except (ValueError, TypeError):
+        limite = 30
+
+    db = _db()
+    docs = (
+        db.collection("relatorios")
+        .order_by("data", direction="DESCENDING")
+        .limit(limite)
+        .stream()
+    )
+    historico = []
+    for doc in docs:
+        d = doc.to_dict()
+        data_str = d.get("data", doc.id)
+        try:
+            data_obj = date.fromisoformat(data_str)
+            data_br = data_obj.strftime("%d/%m/%Y")
+            url_dia = f"https://vigiliasms.web.app?data={data_str}"
+        except ValueError:
+            data_br = data_str
+            url_dia = "https://vigiliasms.web.app"
+        historico.append({
+            "data": data_str,
+            "data_br": data_br,
+            "total": d.get("total", 0),
+            "por_origem": d.get("por_origem", {}),
+            "urgencia": d.get("urgencia", "nenhum"),
+            "texto_ia": d.get("texto_ia") or None,
+            "gerado_em": d.get("gerado_em", ""),
+            "url_dia": url_dia,
+        })
+    return _json_response({"historico": historico})
+
+
+def _montar_e_enviar_digest(
+    db, destinatarios: list[str], data_sexta: date, grupos, fontes,
+) -> dict:
+    """Consolida os resumos IA dos últimos dias úteis e envia o digest semanal."""
+    docs = (
+        db.collection("relatorios")
+        .order_by("data", direction="DESCENDING")
+        .limit(10)
+        .stream()
+    )
+    resumos_diarios = []
+    for doc in docs:
+        d = doc.to_dict()
+        if not d.get("texto_ia"):
+            continue
+        data_str = d.get("data", "")
+        try:
+            data_br = date.fromisoformat(data_str).strftime("%d/%m")
+        except ValueError:
+            data_br = data_str
+        resumos_diarios.append({
+            "data": data_br,
+            "total": d.get("total", 0),
+            "texto": d.get("texto_ia", ""),
+            "urgencia": d.get("urgencia", "nenhum"),
+        })
+        if len(resumos_diarios) >= 5:
+            break
+
+    if not resumos_diarios:
+        logger.info("Sem resumos IA disponíveis para o digest semanal.")
+        return {"total": 0, "enviado": False, "destinatarios": []}
+
+    resumos_diarios.reverse()  # ordem cronológica para o prompt
+
+    termos = grupos_para_termos(grupos)
+    semana_br = (
+        f"{resumos_diarios[0]['data']} a {resumos_diarios[-1]['data']}"
+        if len(resumos_diarios) >= 2
+        else resumos_diarios[0]["data"]
+    )
+
+    resumo_semanal = ia.gerar_resumo_semanal(resumos_diarios, semana_br, termos)
+
+    data_fim = data_sexta - timedelta(days=1)
+    data_inicio = data_sexta - timedelta(days=5)
+    dias_resumidos = [
+        {"data_br": d["data"], "total": d["total"], "urgencia": d["urgencia"]}
+        for d in resumos_diarios
+    ]
+
+    assunto, html_corpo = gerar_digest_html(
+        data_inicio, data_fim, termos, resumo_semanal, dias_resumidos,
+    )
+    envio = enviar_email(destinatarios, assunto, html_corpo)
+
+    db.collection("digests").document(data_sexta.isoformat()).set({
+        "tipo": "digest_semanal",
+        "data": data_sexta.isoformat(),
+        "semana": semana_br,
+        "resumo_ia": bool(resumo_semanal),
+        "destinatarios": envio["destinatarios"],
+        "gerado_em": datetime.now(timezone.utc).isoformat(),
+    })
+
+    total = sum(d.get("total", 0) for d in resumos_diarios)
+    return {"total": total, **envio}
+
+
+def _rota_testar_digest(corpo: dict) -> https_fn.Response:
+    """Envia o digest semanal imediatamente para teste."""
+    db = _db()
+    config = _carregar_config(db)
+    cfg_v = config["varredura"]
+    cfg_d = config.get("digest", {})
+
+    destinatarios = corpo.get("destinatarios") or cfg_d.get("destinatarios") or []
+    destinatarios = [d for d in destinatarios if isinstance(d, str) and "@" in d]
+    if not destinatarios:
+        return _erro(
+            "Informe ao menos um destinatário (ou salve um na configuração do digest)."
+        )
+
+    data_ref = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+    try:
+        resultado = _montar_e_enviar_digest(
+            db, destinatarios, data_ref,
+            cfg_v.get("grupos", config_padrao.GRUPOS_PADRAO),
+            cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
+        )
+        if resultado.get("enviado"):
+            msg = (
+                f"Digest semanal enviado para {len(resultado.get('destinatarios', []))} "
+                f"destinatário(s) com {resultado.get('total', 0)} publicações consolidadas."
+            )
+        else:
+            msg = (
+                "Nenhum resumo IA disponível nos últimos dias para gerar o digest. "
+                "Ative o Resumo por IA no relatório diário e aguarde alguns envios."
+            )
+        return _json_response({"mensagem": msg, **resultado})
+    except EmailNaoConfigurado as e:
+        return _erro(f"E-mail não configurado: {e}", status=503)
+    except Exception as e:
+        logger.exception("Falha ao enviar digest de teste")
+        return _erro(f"Falha ao enviar o digest: {e}", status=502)
+
+
 # ---------------------------------------------------------------------------
 # Função agendada: relatório diário por e-mail
 # ---------------------------------------------------------------------------
@@ -469,6 +647,7 @@ def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
     config = _carregar_config(db)
     cfg_r = config["relatorio"]
     cfg_v = config["varredura"]
+    cfg_d = config.get("digest", {})
 
     if not cfg_r.get("ativo"):
         logger.info("Relatório diário desativado (config/relatorio.ativo=false).")
@@ -512,3 +691,20 @@ def relatorio_diario(event: scheduler_fn.ScheduledEvent) -> None:
         logger.error("Relatório ativo mas SMTP não configurado — defina os secrets.")
     except Exception:
         logger.exception("Falha no envio do relatório diário.")
+
+    # Digest semanal: enviado nas sextas-feiras quando ativado.
+    if agora_sp.weekday() == 4 and cfg_d.get("ativo"):  # 4 = sexta-feira
+        dest_digest = cfg_d.get("destinatarios") or destinatarios
+        dest_digest = [d for d in dest_digest if isinstance(d, str) and "@" in d]
+        if not dest_digest:
+            logger.warning("Digest semanal ativo mas sem destinatários configurados.")
+        else:
+            try:
+                _montar_e_enviar_digest(
+                    db, dest_digest, agora_sp.date(),
+                    cfg_v.get("grupos", config_padrao.GRUPOS_PADRAO),
+                    cfg_v.get("fontes", config_padrao.FONTES_PADRAO),
+                )
+                logger.info("Digest semanal enviado para %d destinatário(s).", len(dest_digest))
+            except Exception:
+                logger.exception("Falha no envio do digest semanal.")

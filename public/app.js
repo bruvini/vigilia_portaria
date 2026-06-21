@@ -12,7 +12,6 @@ const LOTE_RENDERIZACAO = 30;
 const NOMES_FONTES = {
   "DOU": "Diário Oficial da União",
   "DOE-SC": "Diário Oficial de Santa Catarina",
-  "DOE-JOI": "Diário Oficial de Joinville",
 };
 
 const estado = {
@@ -305,6 +304,7 @@ function termosDeKits(grupos) {
 const kitsBusca = criarKits("kits-busca");
 const kitsConfig = criarKits("kits-config");
 const chipsEmails = criarChips("#chips-emails", "#inp-email", (v) => v.includes("@"));
+const chipsDigestEmails = criarChips("#chips-digest-emails", "#inp-digest-email", (v) => v.includes("@"));
 
 /* ------------------------------------------------------------ configuração */
 
@@ -323,6 +323,9 @@ async function carregarConfig() {
     $("#chk-resumo-ia").checked = !!r.resumo_ia;
     chipsEmails.set(r.destinatarios || []);
     $("#sel-horario").value = _horaCheia(r.horario || "07:00");
+    const d = cfg.digest || {};
+    $("#chk-digest-ativo").checked = !!d.ativo;
+    chipsDigestEmails.set(d.destinatarios || []);
     $("#hint-origem-config").hidden = !grupos.length;
   } catch (e) {
     console.warn("Configuração indisponível (API offline?):", e.message);
@@ -414,6 +417,57 @@ async function testarEmail() {
   }
 }
 
+function coletarDigest() {
+  return {
+    ativo: $("#chk-digest-ativo").checked,
+    destinatarios: chipsDigestEmails.get(),
+  };
+}
+
+async function salvarDigest() {
+  const statusEl = $("#config-status");
+  statusEl.textContent = "Salvando configuração do digest…";
+  try {
+    const cfg = await chamarAPI("/config", {
+      method: "POST",
+      body: JSON.stringify({ digest: coletarDigest() }),
+    });
+    estado.configCarregada = cfg;
+    statusEl.textContent = "✓ Configuração do digest semanal salva.";
+    setTimeout(() => { statusEl.textContent = ""; }, 4000);
+  } catch (e) {
+    statusEl.textContent = `Erro ao salvar: ${e.message}`;
+  }
+}
+
+async function testarDigest() {
+  const statusEl = $("#config-status");
+  const dest = chipsDigestEmails.get().length
+    ? chipsDigestEmails.get()
+    : chipsEmails.get();
+  if (!dest.length) {
+    statusEl.textContent = "Adicione ao menos um destinatário antes de testar.";
+    return;
+  }
+  const btn = $("#btn-testar-digest");
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Enviando…";
+  statusEl.textContent = `Consolidando a semana e enviando para ${dest.length} destinatário(s)…`;
+  try {
+    const resp = await chamarAPI("/digest/testar", {
+      method: "POST",
+      body: JSON.stringify({ destinatarios: dest }),
+    });
+    statusEl.textContent = `✓ ${resp.mensagem}`;
+  } catch (e) {
+    statusEl.textContent = `Não foi possível enviar o digest: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
 /* ---------------------------------------------------------------- operador */
 
 /* ----------------------------------------------------------------- loader */
@@ -478,6 +532,143 @@ function loaderErro(msg) {
   sec.classList.add("loader-erro");
   $("#loader-titulo").textContent = "Não foi possível concluir a varredura";
   $("#loader-frase").textContent = msg;
+}
+
+/* ---------------------------------------------------------- histórico de IA */
+
+async function abrirHistorico() {
+  const modal = $("#modal-historico");
+  modal.hidden = false;
+  document.body.classList.add("modal-aberto");
+  $("#btn-historico").setAttribute("aria-expanded", "true");
+
+  const lista = $("#historico-lista");
+  lista.innerHTML = '<p class="historico-estado">Carregando…</p>';
+  try {
+    const resp = await chamarAPI("/historico?limite=30");
+    renderizarHistorico(resp.historico || []);
+  } catch (e) {
+    lista.innerHTML = `<p class="historico-estado">Não foi possível carregar o histórico: ${_esc(e.message)}</p>`;
+  }
+}
+
+function fecharHistorico() {
+  $("#modal-historico").hidden = true;
+  document.body.classList.remove("modal-aberto");
+  $("#btn-historico").setAttribute("aria-expanded", "false");
+}
+
+function renderizarHistorico(entries) {
+  const lista = $("#historico-lista");
+  lista.textContent = "";
+
+  if (!entries.length) {
+    const p = document.createElement("p");
+    p.className = "historico-estado";
+    p.textContent =
+      "Nenhum relatório encontrado. Os registros aparecem após o envio do e-mail automático.";
+    lista.appendChild(p);
+    return;
+  }
+
+  const emojis = { critico: "🔴", moderado: "🟡", baixo: "🟢", nenhum: "⚪" };
+
+  for (const entry of entries) {
+    const item = document.createElement("div");
+    item.className = "hist-entry";
+
+    // cabeçalho da entrada
+    const header = document.createElement("div");
+    header.className = "hist-header";
+
+    const info = document.createElement("div");
+    info.className = "hist-info";
+
+    const urgEl = document.createElement("span");
+    urgEl.className = "hist-urgencia";
+    urgEl.textContent = emojis[entry.urgencia] || "⚪";
+
+    const dataEl = document.createElement("span");
+    dataEl.className = "hist-data";
+    dataEl.textContent = entry.data_br;
+
+    const totalEl = document.createElement("span");
+    totalEl.className = "hist-total";
+    totalEl.textContent = `${entry.total} publicações`;
+
+    info.append(urgEl, dataEl, totalEl);
+
+    const acoes = document.createElement("div");
+    acoes.className = "hist-acoes";
+
+    const linkBtn = document.createElement("a");
+    linkBtn.className = "btn-small btn-small-ghost";
+    linkBtn.href = entry.url_dia;
+    linkBtn.target = "_blank";
+    linkBtn.rel = "noopener noreferrer";
+    linkBtn.textContent = "Ver no Vigília ↗";
+    acoes.appendChild(linkBtn);
+
+    if (entry.texto_ia) {
+      const expandBtn = document.createElement("button");
+      expandBtn.type = "button";
+      expandBtn.className = "btn-small hist-expand";
+      expandBtn.textContent = "Análise IA ▾";
+      expandBtn.addEventListener("click", () => {
+        const corpo = item.querySelector(".hist-corpo");
+        const abrindo = corpo.hidden;
+        corpo.hidden = !abrindo;
+        expandBtn.textContent = abrindo ? "Análise IA ▴" : "Análise IA ▾";
+      });
+      acoes.appendChild(expandBtn);
+    }
+
+    header.append(info, acoes);
+    item.appendChild(header);
+
+    // corpo expansível com a síntese IA
+    if (entry.texto_ia) {
+      const corpo = document.createElement("div");
+      corpo.className = "hist-corpo";
+      corpo.hidden = true;
+
+      const sintese = document.createElement("div");
+      sintese.className = "sintese-corpo hist-sintese";
+
+      for (const linhaBruta of String(entry.texto_ia).split("\n")) {
+        const linha = linhaBruta.trim();
+        if (!linha) continue;
+        let el;
+        if (linha.startsWith("## ")) {
+          el = document.createElement("div");
+          el.className = "sintese-h2";
+          el.innerHTML = _inlineMd(linha.slice(3).trim());
+        } else if (linha.startsWith("### ")) {
+          el = document.createElement("div");
+          el.className = "sintese-h3";
+          el.innerHTML = _inlineMd(linha.slice(4).trim());
+        } else if (linha.startsWith("✦")) {
+          el = document.createElement("div");
+          el.className = "sintese-banner";
+          el.innerHTML = _inlineMd(linha);
+        } else if (/^[*\-•]\s/.test(linha)) {
+          el = document.createElement("div");
+          el.className = "sintese-item";
+          el.innerHTML = _inlineMd(linha.replace(/^[*\-•]\s+/, ""));
+        } else {
+          el = document.createElement("p");
+          el.className = "sintese-p";
+          el.innerHTML = _inlineMd(linha);
+        }
+        sintese.appendChild(el);
+      }
+
+      corpo.appendChild(sintese);
+      item.appendChild(corpo);
+    }
+
+    lista.appendChild(item);
+  }
 }
 
 /* ------------------------------------------------------------------- busca */
@@ -633,7 +824,7 @@ function renderizarSintese(texto) {
 
 /* ------------------------------------------------------------ renderização */
 
-const ORDEM_FONTES = { "DOU": 0, "DOE-SC": 1, "DOE-JOI": 2 };
+const ORDEM_FONTES = { "DOU": 0, "DOE-SC": 1 };
 
 function renderizarResultados(resposta) {
   const secao = $("#sec-resultados");
@@ -882,11 +1073,26 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#btn-config-toggle").addEventListener("click", abrirConfig);
   $("#btn-config-close").addEventListener("click", fecharConfig);
   modalConfig.addEventListener("click", (e) => {
-    if (e.target === modalConfig) fecharConfig();  // clique no backdrop
+    if (e.target === modalConfig) fecharConfig();
   });
+
+  // Modal de histórico
+  $("#btn-historico").addEventListener("click", abrirHistorico);
+  $("#btn-historico-close").addEventListener("click", fecharHistorico);
+  $("#modal-historico").addEventListener("click", (e) => {
+    if (e.target === $("#modal-historico")) fecharHistorico();
+  });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !modalConfig.hidden) fecharConfig();
+    if (e.key === "Escape") {
+      if (!modalConfig.hidden) fecharConfig();
+      if (!$("#modal-historico").hidden) fecharHistorico();
+    }
   });
+
+  // Digest semanal
+  $("#btn-salvar-digest").addEventListener("click", salvarDigest);
+  $("#btn-testar-digest").addEventListener("click", testarDigest);
 
   // Deep-link: ?data=AAAA-MM-DD pré-carrega a data e dispara a busca.
   // Usado pelo botão "Ver no Vigília" dos e-mails do Vigília.

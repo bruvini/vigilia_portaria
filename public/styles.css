@@ -1217,6 +1217,93 @@ mark {
 }
 
 /* ==========================================================================
+   HISTÓRICO DE ANÁLISES
+   ========================================================================== */
+
+.historico-lista {
+  max-height: 72vh;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.historico-estado {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ink-mute);
+  padding: 1.2rem 0;
+  text-align: center;
+}
+
+.hist-entry {
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  margin-bottom: 0.6rem;
+  transition: border-color 0.2s;
+}
+
+.hist-entry:hover { border-color: var(--ink-mute); }
+
+.hist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.2rem;
+}
+
+.hist-info {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.hist-data {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.04em;
+}
+
+.hist-urgencia { font-size: 1.05rem; }
+
+.hist-total {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+}
+
+.hist-acoes { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+.hist-expand {
+  background: transparent;
+  border-color: var(--hairline);
+  color: var(--ink-mute);
+  font-size: 0.72rem;
+}
+
+.hist-corpo {
+  border-top: 1px solid var(--hairline);
+  padding: 1rem 1.2rem 1.2rem 1.2rem;
+  background: var(--paper);
+}
+
+.hist-sintese { font-size: 0.9rem; }
+.hist-sintese .sintese-h2 { font-size: 1rem; }
+.hist-sintese .sintese-h3 { font-size: 0.9rem; }
+.hist-sintese .sintese-p,
+.hist-sintese .sintese-item { font-size: 0.88rem; line-height: 1.55; }
+
+/* seção de digest no config */
+.config-digest {
+  border-top: 1px solid var(--hairline);
+  padding-top: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+/* ==========================================================================
    RESPONSIVO
    ========================================================================== */
 

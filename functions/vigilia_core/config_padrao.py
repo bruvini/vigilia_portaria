@@ -31,5 +31,13 @@ RELATORIO_PADRAO: dict = {
     "ativo": False,
     "destinatarios": [],
     "horario": "07:00",   # America/Sao_Paulo — informativo; o cron real está em main.py
-    "resumo_ia": False,    # síntese por IA (Gemini) — exige GEMINI_API_KEY (futuro)
+    "resumo_ia": False,    # síntese por IA (Gemini) — exige GEMINI_API_KEY
+}
+
+# Digest semanal: e-mail consolidado enviado às sextas-feiras.
+# Requer que o relatório diário com resumo_ia=True tenha sido enviado nos dias
+# anteriores (os resumos ficam salvos em Firestore/relatorios).
+DIGEST_PADRAO: dict = {
+    "ativo": False,
+    "destinatarios": [],  # vazio = reutiliza os destinatários do relatório diário
 }

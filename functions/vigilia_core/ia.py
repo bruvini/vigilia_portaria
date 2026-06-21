@@ -287,3 +287,112 @@ def gerar_resumo(
         ultima_excecao,
     )
     return None
+
+
+_SYSTEM_INSTRUCTION_SEMANAL = (
+    'Você é o motor de IA do "Vigília", analista do Setor de Convênios e Parcerias '
+    "da Saúde de Joinville. Você recebe os RESUMOS DIÁRIOS dos últimos dias úteis "
+    "(já filtrados para convênios e parcerias) e deve produzir um DIGEST SEMANAL "
+    "consolidado e objetivo.\n\n"
+    "TAREFA: sintetize o que aconteceu de mais importante na semana e destaque o "
+    "que o setor precisa acompanhar na próxima.\n\n"
+    "DIRETRIZ DE CONSOLIDAÇÃO: se um mesmo programa ou recurso apareceu em vários "
+    "dias, consolide em UM único bloco. Elimine redundâncias. Ordene por impacto "
+    "financeiro.\n\n"
+    "ESTILO: emojis semânticos; valores financeiros em negrito; seja direto.\n\n"
+    "FORMATO (Markdown):\n\n"
+    "✦ **Vigília IA · Digest Semanal**\n\n"
+    "## 📅 Semana em Revisão\n"
+    "* **Destaque máximo:** [o ato mais impactante de toda a semana].\n"
+    "* **Volume total:** [N] publicações filtradas na semana.\n\n"
+    "## 🎯 Principais Atos da Semana\n"
+    "### 📑 [CATEGORIA] [Nome do Programa/Recurso]\n"
+    "* **Publicado em:** [data(s)]\n"
+    "* **Resumo:** [impacto para o setor — breve]\n"
+    "* 💰 **Impacto financeiro:** [valor ou 'Valor sob consulta nos anexos do ato']\n"
+    "* 🔗 **Link:** [URL exata do ato, se disponível nos resumos abaixo]\n\n"
+    "## ⚡ Agenda da Próxima Semana\n"
+    "* ▢ **[Prazo/Ação]:** [o que o setor precisa fazer e até quando]\n\n"
+    "REGRAS ABSOLUTAS:\n"
+    "- Nunca invente valores. Sem valor explícito: 'Valor sob consulta nos anexos do ato'.\n"
+    "- Se a semana não tiver atos relevantes: "
+    "'✦ **Vigília IA:** Nenhum ato de alto impacto identificado nesta semana.'"
+)
+
+
+def gerar_resumo_semanal(
+    resumos_diarios: list[dict],
+    semana_br: str,
+    termos: list[str],
+    modelo: str | None = None,
+) -> str | None:
+    """
+    Gera um digest semanal consolidando os resumos dos últimos dias úteis.
+
+    resumos_diarios: [{"data": "16/06", "total": 40, "texto": "...resumo IA..."}, ...]
+    """
+    if not resumo_disponivel():
+        logger.info("Digest semanal ignorado: GEMINI_API_KEY não configurada.")
+        return None
+    if not resumos_diarios:
+        return None
+
+    try:
+        from google import genai  # type: ignore
+        from google.genai import types  # type: ignore
+        from google.genai import errors as genai_errors  # type: ignore
+    except ImportError:
+        logger.warning("Pacote 'google-genai' não instalado — digest indisponível.")
+        return None
+
+    blocos = []
+    for dia in resumos_diarios:
+        data = dia.get("data", "")
+        total = dia.get("total", 0)
+        texto = (dia.get("texto") or "").strip()
+        cabecalho = f"=== {data} ({total} publicações filtradas) ==="
+        blocos.append(f"{cabecalho}\n{texto}" if texto else
+                      f"{cabecalho}\n[Resumo IA não disponível para este dia]")
+
+    termos_txt = ", ".join(termos) if termos else "(todos os termos configurados)"
+    prompt = (
+        f"SEMANA: {semana_br}\n"
+        f"TERMOS MONITORADOS: {termos_txt}\n\n"
+        "RESUMOS DIÁRIOS:\n\n" + "\n\n".join(blocos)
+    )
+
+    cliente = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    config = types.GenerateContentConfig(
+        system_instruction=_SYSTEM_INSTRUCTION_SEMANAL,
+        temperature=0.3,
+        max_output_tokens=8192,
+        thinking_config=types.ThinkingConfig(thinking_budget=-1),
+    )
+
+    transitorios = {429, 500, 502, 503, 504}
+    ultima_excecao = None
+    for tentativa in range(3):
+        try:
+            resposta = cliente.models.generate_content(
+                model=modelo or MODELO_PADRAO,
+                contents=prompt,
+                config=config,
+            )
+            return (getattr(resposta, "text", "") or "").strip() or None
+        except genai_errors.APIError as e:
+            ultima_excecao = e
+            if getattr(e, "code", None) in transitorios and tentativa < 2:
+                espera = 2 * (tentativa + 1)
+                logger.warning(
+                    "Gemini %s (tentativa %d/3) — repetindo em %ds.",
+                    getattr(e, "code", "?"), tentativa + 1, espera,
+                )
+                time.sleep(espera)
+                continue
+            break
+        except Exception as e:
+            ultima_excecao = e
+            break
+
+    logger.warning("Falha ao gerar digest semanal (%s).", ultima_excecao)
+    return None
